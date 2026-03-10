@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NRL Tracker - Rankings, Results & Predictions</title>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --card: #131a2b;
+    --card2: #1a2236;
+    --border: #243049;
+    --text: #e0e6f0;
+    --text2: #8892a8;
+    --accent: #00c7ff;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --purple: #a855f7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #0f1729 0%, #1a1040 100%);
+    border-bottom: 2px solid var(--accent);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo svg { width: 36px; height: 36px; }
+
+  .logo h1 {
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
+    50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  #lastUpdate { color: var(--text2); }
+  #dataSource { color: var(--accent); font-weight: 500; }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .full-width { grid-column: 1 / -1; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--card2);
+  }
+
+  .card-header h2 {
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-body { padding: 0; }
+  .card-body.padded { padding: 16px; }
+
+  .round-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .round-nav button {
+    background: var(--border);
+    border: none;
+    color: var(--text);
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .round-nav button:hover { background: var(--accent); color: #000; }
+  .round-nav span { font-size: 13px; color: var(--text2); min-width: 70px; text-align: center; }
+
+  /* Ladder */
+  .ladder-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .ladder-table th {
+    padding: 8px 10px;
+    text-align: left;
+    color: var(--text2);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--card2);
+  }
+
+  .ladder-table th.right, .ladder-table td.right { text-align: right; }
+  .ladder-table th.center, .ladder-table td.center { text-align: center; }
+
+  .ladder-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(36,48,73,0.5);
+    white-space: nowrap;
+  }
+
+  .ladder-table tr:hover { background: rgba(0,199,255,0.04); }
+
+  .ladder-table tr.top8 td:first-child {
+    border-left: 3px solid var(--green);
+  }
+
+  .ladder-table tr.bottom td:first-child {
+    border-left: 3px solid var(--red);
+  }
+
+  .pos {
+    font-weight: 700;
+    width: 28px;
+    display: inline-block;
+    text-align: center;
+  }
+
+  .movement {
+    font-size: 10px;
+    margin-left: 2px;
+  }
+
+  .movement.up { color: var(--green); }
+  .movement.down { color: var(--red); }
+
+  .team-name {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .team-logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .form-badges {
+    display: flex;
+    gap: 3px;
+  }
+
+  .form-badge {
+    width: 18px; height: 18px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .form-badge.W { background: var(--green); color: #fff; }
+  .form-badge.L { background: var(--red); color: #fff; }
+  .form-badge.D { background: var(--orange); color: #000; }
+  .form-badge.B { background: var(--border); color: var(--text2); }
+
+  .pd-pos { color: var(--green); }
+  .pd-neg { color: var(--red); }
+
+  /* Match cards */
+  .matches-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+  }
+
+  .match-card {
+    background: var(--card2);
+    border-radius: 8px;
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .match-card.live-match {
+    border: 1px solid var(--green);
+    box-shadow: 0 0 12px rgba(34,197,94,0.15);
+  }
+
+  .match-team {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .match-team.away { justify-content: flex-end; text-align: right; }
+
+  .match-center {
+    text-align: center;
+    min-width: 80px;
+  }
+
+  .match-score {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+
+  .match-info {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+
+  .match-live-tag {
+    font-size: 10px;
+    color: var(--green);
+    font-weight: 700;
+    animation: pulse 1.5s infinite;
+  }
+
+  .match-venue {
+    font-size: 10px;
+    color: var(--text2);
+    text-align: center;
+    margin-top: 4px;
+    grid-column: 1 / -1;
+  }
+
+  /* Predictions */
+  .prediction-card {
+    background: var(--card2);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 2px;
+  }
+
+  .prediction-teams {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .pred-team {
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pred-team.fav { color: var(--accent); }
+
+  .pred-vs {
+    font-size: 11px;
+    color: var(--text2);
+    text-transform: uppercase;
+  }
+
+  .prob-bar-container {
+    height: 28px;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    position: relative;
+    background: var(--border);
+  }
+
+  .prob-bar-home {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+    transition: width 0.6s ease;
+    background: linear-gradient(90deg, var(--accent), #0090cc);
+  }
+
+  .prob-bar-away {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+    flex: 1;
+    background: linear-gradient(90deg, #7c3aed, var(--purple));
+  }
+
+  .pred-details {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .pred-margin {
+    color: var(--orange);
+    font-weight: 600;
+  }
+
+  .pred-confidence {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .confidence-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+
+  .confidence-high { background: var(--green); }
+  .confidence-med { background: var(--orange); }
+  .confidence-low { background: var(--red); }
+
+  /* Stats panel */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .stat-item {
+    text-align: center;
+    padding: 12px 8px;
+    background: var(--card2);
+    border-radius: 8px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+  }
+
+  /* Method panel */
+  .method-panel {
+    padding: 16px;
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+
+  .method-panel h3 {
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .factor-list {
+    list-style: none;
+    margin-top: 8px;
+  }
+
+  .factor-list li {
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .factor-weight {
+    background: var(--border);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: center;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--text2);
+  }
+
+  .loading-spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    text-align: center;
+    padding: 20px;
+    color: var(--orange);
+    font-size: 13px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 2px;
+    padding: 8px 8px 0;
+  }
+
+  .tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.2s;
+  }
+
+  .tab.active {
+    background: var(--card2);
+    color: var(--accent);
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .streak-w { color: var(--green); font-weight: 600; }
+  .streak-l { color: var(--red); font-weight: 600; }
+
+  .ladder-scroll {
+    max-height: 620px;
+    overflow-y: auto;
+  }
+
+  .ladder-scroll::-webkit-scrollbar { width: 6px; }
+  .ladder-scroll::-webkit-scrollbar-track { background: var(--card); }
+  .ladder-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    .container { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .ladder-table th:nth-child(n+6), .ladder-table td:nth-child(n+6) { display: none; }
+  }
+
+  @media (max-width: 600px) {
+    header { padding: 12px 16px; }
+    .container { padding: 12px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .refresh-btn {
+    background: var(--border);
+    border: none;
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover { background: var(--accent); color: #000; }
+
+  .season-select {
+    background: var(--border);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 36 36" fill="none">
+      <ellipse cx="18" cy="18" rx="14" ry="10" stroke="var(--accent)" stroke-width="2.5" transform="rotate(-30 18 18)"/>
+      <ellipse cx="18" cy="18" rx="14" ry="10" stroke="var(--purple)" stroke-width="2.5" transform="rotate(30 18 18)"/>
+      <line x1="10" y1="18" x2="26" y2="18" stroke="var(--accent)" stroke-width="1.5"/>
+      <line x1="18" y1="10" x2="18" y2="26" stroke="var(--purple)" stroke-width="1.5"/>
+    </svg>
+    <h1>NRL TRACKER</h1>
+  </div>
+  <div class="status-bar">
+    <div class="live-badge"><div class="live-dot"></div> LIVE DATA</div>
+    <span id="lastUpdate">Loading...</span>
+    <span id="dataSource"></span>
+    <select class="season-select" id="seasonSelect">
+      <option value="2026">2026</option>
+      <option value="2025">2025</option>
+    </select>
+    <button class="refresh-btn" onclick="refreshAll()">Refresh</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Prediction Accuracy Stats -->
+  <div class="card full-width">
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-item"><div class="stat-value" id="statRound">-</div><div class="stat-label">Current Round</div></div>
+      <div class="stat-item"><div class="stat-value" id="statMatches">-</div><div class="stat-label">Matches Played</div></div>
+      <div class="stat-item"><div class="stat-value" id="statAvgMargin">-</div><div class="stat-label">Avg Margin</div></div>
+      <div class="stat-item"><div class="stat-value" id="statUpcoming">-</div><div class="stat-label">Upcoming Matches</div></div>
+    </div>
+  </div>
+
+  <!-- Ladder -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Ladder</h2>
+    </div>
+    <div class="card-body">
+      <div class="ladder-scroll" id="ladderContainer">
+        <div class="loading"><div class="loading-spinner"></div>Loading ladder...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Predictions -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Predictions</h2>
+      <div class="round-nav">
+        <button onclick="changeRound(-1)">&larr;</button>
+        <span id="predRoundLabel">Round -</span>
+        <button onclick="changeRound(1)">&rarr;</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="predictionsContainer" style="padding:8px;">
+        <div class="loading"><div class="loading-spinner"></div>Calculating predictions...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Results -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Recent Results</h2>
+      <div class="round-nav">
+        <button onclick="changeResultsRound(-1)">&larr;</button>
+        <span id="resultsRoundLabel">Round -</span>
+        <button onclick="changeResultsRound(1)">&rarr;</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="resultsContainer">
+        <div class="loading"><div class="loading-spinner"></div>Loading results...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prediction Method -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Prediction Model</h2>
+    </div>
+    <div class="card-body">
+      <div class="method-panel">
+        <h3>ELO + Form Hybrid Model</h3>
+        <p>Predictions combine multiple weighted factors derived from live NRL data:</p>
+        <ul class="factor-list">
+          <li><span class="factor-weight">30%</span> Ladder position & competition points</li>
+          <li><span class="factor-weight">25%</span> Points differential (attack vs defence)</li>
+          <li><span class="factor-weight">20%</span> Recent form (last 5 games W/L streak)</li>
+          <li><span class="factor-weight">15%</span> Home/away advantage & ground record</li>
+          <li><span class="factor-weight">10%</span> Head-to-head implied by win margins</li>
+        </ul>
+        <p style="margin-top:12px;">Win probability uses a logistic function applied to the composite rating difference. Predicted margins scale linearly with probability gap.</p>
+        <p style="margin-top:8px; color: var(--accent);">Data sourced live from nrl.com via proxy. Refreshes every 60 seconds.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const PROXY = 'https://api.allorigins.win/raw?url=';
+const BASE = 'https://www.nrl.com';
+const COMP = 111;
+
+let currentSeason = 2026;
+let ladderData = null;
+let drawByRound = {};
+let currentPredRound = null;
+let currentResultsRound = null;
+let latestRound = 1;
+let refreshTimer = null;
+
+const TEAM_COLORS = {
+  'Broncos': '#770028', 'Bulldogs': '#005daa', 'Cowboys': '#002b5c',
+  'Dragons': '#e13a3e', 'Dolphins': '#e4002b', 'Eels': '#ffd327',
+  'Knights': '#003c71', 'Rabbitohs': '#003e1f', 'Panthers': '#221f20',
+  'Raiders': '#97d700', 'Roosters': '#003c71', 'Sea Eagles': '#6f263d',
+  'Sharks': '#00a4d1', 'Storm': '#592c82', 'Titans': '#00adef',
+  'Warriors': '#003831', 'Wests Tigers': '#f47920', 'Sea Eagles': '#6f263d',
+};
+
+const TEAM_ABBR = {
+  'Broncos': 'BRI', 'Bulldogs': 'CBY', 'Cowboys': 'NQL', 'Dragons': 'SGI',
+  'Dolphins': 'DOL', 'Eels': 'PAR', 'Knights': 'NEW', 'Rabbitohs': 'SOU',
+  'Panthers': 'PEN', 'Raiders': 'CAN', 'Roosters': 'SYD', 'Sea Eagles': 'MAN',
+  'Sharks': 'CRO', 'Storm': 'MEL', 'Titans': 'GLD', 'Warriors': 'WAR',
+  'Wests Tigers': 'WST',
+};
+
+function getTeamColor(name) {
+  for (const [key, val] of Object.entries(TEAM_COLORS)) {
+    if (name && name.includes(key)) return val;
+  }
+  return '#555';
+}
+
+function getTeamAbbr(name) {
+  for (const [key, val] of Object.entries(TEAM_ABBR)) {
+    if (name && name.includes(key)) return val;
+  }
+  return (name || '???').substring(0, 3).toUpperCase();
+}
+
+async function fetchNRL(path) {
+  const url = `${BASE}${path}`;
+  const encoded = encodeURIComponent(url);
+  const resp = await fetch(`${PROXY}${encoded}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+async function loadLadder() {
+  try {
+    const data = await fetchNRL(`/ladder/data?competition=${COMP}&season=${currentSeason}`);
+    ladderData = data;
+    renderLadder(data);
+    document.getElementById('dataSource').textContent = 'nrl.com';
+  } catch (e) {
+    console.error('Ladder fetch failed:', e);
+    document.getElementById('ladderContainer').innerHTML =
+      `<div class="error-msg">Could not load ladder. Retrying...</div>`;
+  }
+}
+
+function renderLadder(data) {
+  const positions = data.positions || [];
+  if (!positions.length) {
+    document.getElementById('ladderContainer').innerHTML =
+      '<div class="error-msg">No ladder data available yet.</div>';
+    return;
+  }
+
+  let totalPlayed = 0, totalPD = 0;
+  positions.forEach(p => {
+    const s = p.stats || {};
+    totalPlayed += parseInt(s.played) || 0;
+    totalPD += Math.abs(parseInt(s['points difference']) || 0);
+  });
+
+  document.getElementById('statMatches').textContent = Math.floor(totalPlayed / 2);
+  document.getElementById('statAvgMargin').textContent =
+    totalPlayed > 0 ? (totalPD / positions.length).toFixed(1) : '-';
+
+  let html = `<table class="ladder-table">
+    <thead><tr>
+      <th>#</th><th>Team</th><th class="center">P</th><th class="center">W</th>
+      <th class="center">L</th><th class="center">D</th><th class="right">PD</th>
+      <th class="right">Pts</th><th>Form</th><th>Streak</th>
+    </tr></thead><tbody>`;
+
+  positions.forEach((p, i) => {
+    const s = p.stats || {};
+    const pos = i + 1;
+    const cls = pos <= 8 ? 'top8' : (pos >= 15 ? 'bottom' : '');
+    const nick = p.teamNickname || 'Unknown';
+    const color = getTeamColor(nick);
+    const abbr = getTeamAbbr(nick);
+    const pd = parseInt(s['points difference']) || 0;
+    const pdClass = pd >= 0 ? 'pd-pos' : 'pd-neg';
+    const pdStr = pd >= 0 ? `+${pd}` : `${pd}`;
+
+    // Movement arrow
+    let mvmt = '';
+    if (p.movement === 'up') mvmt = '<span class="movement up">&#9650;</span>';
+    else if (p.movement === 'down') mvmt = '<span class="movement down">&#9660;</span>';
+
+    // Form badges
+    const form = (s.form || '').split('').slice(-5);
+    const formHtml = form.map(f => `<div class="form-badge ${f}">${f}</div>`).join('');
+
+    // Streak
+    const streak = s.streak || '-';
+    const streakClass = streak.startsWith('W') ? 'streak-w' : (streak.startsWith('L') ? 'streak-l' : '');
+
+    html += `<tr class="${cls}">
+      <td><span class="pos">${pos}</span>${mvmt}</td>
+      <td><div class="team-name">
+        <div class="team-logo" style="background:${color}">${abbr}</div>
+        ${nick}
+      </div></td>
+      <td class="center">${s.played || 0}</td>
+      <td class="center">${s.wins || 0}</td>
+      <td class="center">${s.lost || 0}</td>
+      <td class="center">${s.drawn || 0}</td>
+      <td class="right ${pdClass}">${pdStr}</td>
+      <td class="right" style="font-weight:700">${s.points || 0}</td>
+      <td><div class="form-badges">${formHtml}</div></td>
+      <td class="${streakClass}">${streak}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('ladderContainer').innerHTML = html;
+}
+
+async function loadDraw(round) {
+  try {
+    const data = await fetchNRL(`/draw/data?competition=${COMP}&season=${currentSeason}&round=${round}`);
+    drawByRound[round] = data;
+    return data;
+  } catch (e) {
+    console.error(`Draw R${round} fetch failed:`, e);
+    return null;
+  }
+}
+
+function findCurrentAndUpcomingRound(drawData) {
+  if (!drawData || !drawData.fixtures) return;
+  const fixtures = drawData.fixtures;
+  const hasCompleted = fixtures.some(f => f.matchMode === 'Post');
+  const hasPre = fixtures.some(f => f.matchMode === 'Pre');
+  const hasLive = fixtures.some(f => f.matchMode === 'Live');
+
+  if (hasLive || (hasCompleted && hasPre)) {
+    // Currently mid-round
+    return 'current';
+  }
+  if (hasPre && !hasCompleted) return 'upcoming';
+  if (hasCompleted && !hasPre) return 'completed';
+  return 'unknown';
+}
+
+async function findLatestRound() {
+  // Start from round 1 and find the latest active round
+  for (let r = 1; r <= 27; r++) {
+    const data = await loadDraw(r);
+    if (!data || !data.fixtures || data.fixtures.length === 0) {
+      latestRound = Math.max(1, r - 1);
+      break;
+    }
+    const status = findCurrentAndUpcomingRound(data);
+    if (status === 'upcoming' || status === 'current') {
+      latestRound = r;
+      break;
+    }
+    if (r === 27) latestRound = 27;
+  }
+
+  document.getElementById('statRound').textContent = latestRound;
+  currentPredRound = latestRound;
+  currentResultsRound = Math.max(1, latestRound - (findCurrentAndUpcomingRound(drawByRound[latestRound]) === 'upcoming' ? 1 : 0));
+
+  renderPredictions();
+  renderResults();
+}
+
+function getTeamRating(nickname) {
+  if (!ladderData || !ladderData.positions) return 50;
+  const positions = ladderData.positions;
+  const total = positions.length || 17;
+  const idx = positions.findIndex(p => p.teamNickname === nickname);
+  if (idx === -1) return 50;
+
+  const p = positions[idx];
+  const s = p.stats || {};
+
+  // Ladder position score (0-100, higher = better)
+  const posScore = ((total - idx) / total) * 100;
+
+  // Points differential score
+  const pd = parseInt(s['points difference']) || 0;
+  const played = parseInt(s.played) || 1;
+  const pdPerGame = pd / played;
+  const pdScore = Math.min(100, Math.max(0, 50 + pdPerGame * 2.5));
+
+  // Form score
+  const form = (s.form || '').split('').slice(-5);
+  let formScore = 50;
+  if (form.length > 0) {
+    const wins = form.filter(f => f === 'W').length;
+    formScore = (wins / form.length) * 100;
+  }
+
+  // Win rate
+  const wins = parseInt(s.wins) || 0;
+  const winRate = played > 0 ? (wins / played) * 100 : 50;
+
+  // Composite
+  return posScore * 0.3 + pdScore * 0.25 + formScore * 0.2 + winRate * 0.15 + 50 * 0.1;
+}
+
+function predictMatch(homeTeam, awayTeam) {
+  let homeRating = getTeamRating(homeTeam);
+  let awayRating = getTeamRating(awayTeam);
+
+  // Home advantage
+  homeRating += 5;
+
+  const diff = homeRating - awayRating;
+
+  // Logistic function for probability
+  const homeProb = 1 / (1 + Math.pow(10, -diff / 30));
+  const awayProb = 1 - homeProb;
+
+  // Predicted margin (roughly 0.5 pts per probability %)
+  const marginScale = Math.abs(diff) * 0.5;
+  const predictedMargin = Math.round(Math.max(1, marginScale));
+
+  // Confidence
+  const maxProb = Math.max(homeProb, awayProb);
+  let confidence = 'low';
+  if (maxProb > 0.7) confidence = 'high';
+  else if (maxProb > 0.58) confidence = 'med';
+
+  return {
+    homeProb: Math.round(homeProb * 100),
+    awayProb: Math.round(awayProb * 100),
+    predictedMargin,
+    favoured: homeProb >= awayProb ? 'home' : 'away',
+    confidence
+  };
+}
+
+function renderPredictions() {
+  const container = document.getElementById('predictionsContainer');
+  const label = document.getElementById('predRoundLabel');
+  label.textContent = `Round ${currentPredRound}`;
+
+  const data = drawByRound[currentPredRound];
+  if (!data || !data.fixtures) {
+    container.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading...</div>';
+    loadDraw(currentPredRound).then(() => renderPredictions());
+    return;
+  }
+
+  const fixtures = data.fixtures;
+  const upcoming = fixtures.filter(f => f.matchMode === 'Pre' || f.matchMode === 'Live');
+
+  if (upcoming.length === 0) {
+    // Show completed games with "predictions" vs actuals
+    const completed = fixtures.filter(f => f.matchMode === 'Post');
+    if (completed.length === 0) {
+      container.innerHTML = '<div class="error-msg">No fixtures for this round.</div>';
+      return;
+    }
+    container.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text2);text-align:center;">Round completed - showing result predictions</div>';
+    let html = container.innerHTML;
+    completed.forEach(f => {
+      html += renderPredictionCard(f, true);
+    });
+    container.innerHTML = html;
+    countUpcoming();
+    return;
+  }
+
+  let html = '';
+  upcoming.forEach(f => {
+    html += renderPredictionCard(f, false);
+  });
+
+  container.innerHTML = html;
+  countUpcoming();
+}
+
+function renderPredictionCard(fixture, isCompleted) {
+  const homeNick = fixture.homeTeam?.nickName || 'Home';
+  const awayNick = fixture.awayTeam?.nickName || 'Away';
+  const homeColor = getTeamColor(homeNick);
+  const awayColor = getTeamColor(awayNick);
+  const homeAbbr = getTeamAbbr(homeNick);
+  const awayAbbr = getTeamAbbr(awayNick);
+
+  const pred = predictMatch(homeNick, awayNick);
+
+  const isLive = fixture.matchMode === 'Live';
+
+  let kickoff = '';
+  if (fixture.clock?.kickOffTimeLong) {
+    const d = new Date(fixture.clock.kickOffTimeLong);
+    kickoff = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) +
+      ' ' + d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const confClass = `confidence-${pred.confidence}`;
+  const confLabel = pred.confidence === 'high' ? 'High' : pred.confidence === 'med' ? 'Medium' : 'Low';
+
+  let resultNote = '';
+  if (isCompleted) {
+    const hs = fixture.homeTeam?.score ?? '-';
+    const as = fixture.awayTeam?.score ?? '-';
+    const actualWinner = hs > as ? 'home' : 'away';
+    const correct = actualWinner === pred.favoured;
+    resultNote = `<div style="margin-top:6px;font-size:11px;text-align:center;color:${correct ? 'var(--green)' : 'var(--red)'}">
+      Result: ${hs} - ${as} | Prediction ${correct ? 'CORRECT' : 'WRONG'}</div>`;
+  }
+
+  return `<div class="prediction-card">
+    ${isLive ? '<div class="match-live-tag" style="text-align:center;margin-bottom:6px;">LIVE NOW</div>' : ''}
+    <div class="prediction-teams">
+      <div class="pred-team ${pred.favoured === 'home' ? 'fav' : ''}">
+        <div class="team-logo" style="background:${homeColor};width:20px;height:20px;font-size:8px;">${homeAbbr}</div>
+        ${homeNick}
+      </div>
+      <div class="pred-vs">vs</div>
+      <div class="pred-team ${pred.favoured === 'away' ? 'fav' : ''}">
+        ${awayNick}
+        <div class="team-logo" style="background:${awayColor};width:20px;height:20px;font-size:8px;">${awayAbbr}</div>
+      </div>
+    </div>
+    <div class="prob-bar-container">
+      <div class="prob-bar-home" style="width:${pred.homeProb}%">${pred.homeProb}%</div>
+      <div class="prob-bar-away">${pred.awayProb}%</div>
+    </div>
+    <div class="pred-details">
+      <span class="pred-margin">Predicted margin: ${pred.predictedMargin} pts</span>
+      <span class="pred-confidence"><span class="confidence-dot ${confClass}"></span> ${confLabel} confidence</span>
+    </div>
+    ${kickoff ? `<div style="font-size:10px;color:var(--text2);margin-top:4px;">${kickoff}</div>` : ''}
+    ${resultNote}
+  </div>`;
+}
+
+function renderResults() {
+  const container = document.getElementById('resultsContainer');
+  const label = document.getElementById('resultsRoundLabel');
+  label.textContent = `Round ${currentResultsRound}`;
+
+  const data = drawByRound[currentResultsRound];
+  if (!data || !data.fixtures) {
+    container.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Loading...</div>';
+    loadDraw(currentResultsRound).then(() => renderResults());
+    return;
+  }
+
+  const fixtures = data.fixtures;
+  const completed = fixtures.filter(f => f.matchMode === 'Post');
+  const live = fixtures.filter(f => f.matchMode === 'Live');
+  const all = [...live, ...completed];
+
+  if (all.length === 0) {
+    container.innerHTML = '<div class="error-msg">No results yet for this round.</div>';
+    return;
+  }
+
+  let html = '<div class="matches-list">';
+  all.forEach(f => {
+    const homeNick = f.homeTeam?.nickName || 'Home';
+    const awayNick = f.awayTeam?.nickName || 'Away';
+    const homeColor = getTeamColor(homeNick);
+    const awayColor = getTeamColor(awayNick);
+    const homeAbbr = getTeamAbbr(homeNick);
+    const awayAbbr = getTeamAbbr(awayNick);
+    const hs = f.homeTeam?.score ?? '-';
+    const as = f.awayTeam?.score ?? '-';
+    const isLive = f.matchMode === 'Live';
+
+    const venue = f.venue || '';
+    const gameTime = f.clock?.gameTime || '';
+
+    html += `<div class="match-card ${isLive ? 'live-match' : ''}">
+      <div class="match-team">
+        <div class="team-logo" style="background:${homeColor}">${homeAbbr}</div>
+        ${homeNick}
+      </div>
+      <div class="match-center">
+        ${isLive ? '<div class="match-live-tag">LIVE ' + gameTime + '</div>' : ''}
+        <div class="match-score">${hs} - ${as}</div>
+        <div class="match-info">${isLive ? '' : 'Full Time'}</div>
+      </div>
+      <div class="match-team away">
+        ${awayNick}
+        <div class="team-logo" style="background:${awayColor}">${awayAbbr}</div>
+      </div>
+      ${venue ? `<div class="match-venue">${venue}</div>` : ''}
+    </div>`;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function countUpcoming() {
+  let count = 0;
+  for (const r in drawByRound) {
+    const d = drawByRound[r];
+    if (d && d.fixtures) {
+      count += d.fixtures.filter(f => f.matchMode === 'Pre').length;
+    }
+  }
+  document.getElementById('statUpcoming').textContent = count || '-';
+}
+
+async function changeRound(delta) {
+  const newRound = currentPredRound + delta;
+  if (newRound < 1 || newRound > 27) return;
+  currentPredRound = newRound;
+  if (!drawByRound[newRound]) {
+    document.getElementById('predictionsContainer').innerHTML =
+      '<div class="loading"><div class="loading-spinner"></div>Loading...</div>';
+    await loadDraw(newRound);
+  }
+  renderPredictions();
+}
+
+async function changeResultsRound(delta) {
+  const newRound = currentResultsRound + delta;
+  if (newRound < 1 || newRound > 27) return;
+  currentResultsRound = newRound;
+  if (!drawByRound[newRound]) {
+    document.getElementById('resultsContainer').innerHTML =
+      '<div class="loading"><div class="loading-spinner"></div>Loading...</div>';
+    await loadDraw(newRound);
+  }
+  renderResults();
+}
+
+async function refreshAll() {
+  document.getElementById('lastUpdate').textContent = 'Refreshing...';
+  drawByRound = {};
+  await loadLadder();
+  await findLatestRound();
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent =
+    `Updated ${now.toLocaleTimeString('en-AU')}`;
+}
+
+document.getElementById('seasonSelect').addEventListener('change', (e) => {
+  currentSeason = parseInt(e.target.value);
+  refreshAll();
+});
+
+// Initial load
+(async () => {
+  await loadLadder();
+  await findLatestRound();
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent =
+    `Updated ${now.toLocaleTimeString('en-AU')}`;
+
+  // Auto-refresh every 60 seconds
+  refreshTimer = setInterval(async () => {
+    await loadLadder();
+    // Reload current rounds
+    if (currentPredRound) {
+      await loadDraw(currentPredRound);
+      renderPredictions();
+    }
+    if (currentResultsRound) {
+      await loadDraw(currentResultsRound);
+      renderResults();
+    }
+    const now = new Date();
+    document.getElementById('lastUpdate').textContent =
+      `Updated ${now.toLocaleTimeString('en-AU')}`;
+  }, 60000);
+})();
+</script>
+
+</body>
+</html>
