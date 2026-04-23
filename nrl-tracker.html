@@ -582,11 +582,7 @@
   <div class="card">
     <div class="card-header">
       <h2>Predictions</h2>
-      <div class="round-nav">
-        <button onclick="changeRound(-1)">&larr;</button>
-        <span id="predRoundLabel">Round -</span>
-        <button onclick="changeRound(1)">&rarr;</button>
-      </div>
+      <span id="predRoundLabel" style="font-size:13px;color:var(--text2);">Round -</span>
     </div>
     <div class="card-body">
       <div id="predictionsContainer" style="padding:8px;">
@@ -1076,17 +1072,7 @@ function countUpcoming() {
   document.getElementById('statUpcoming').textContent = count || '-';
 }
 
-async function changeRound(delta) {
-  const newRound = currentPredRound + delta;
-  if (newRound < 1 || newRound > 27) return;
-  currentPredRound = newRound;
-  if (!drawByRound[newRound]) {
-    document.getElementById('predictionsContainer').innerHTML =
-      '<div class="loading"><div class="loading-spinner"></div>Loading...</div>';
-    await loadDraw(newRound);
-  }
-  renderPredictions();
-}
+
 
 async function changeResultsRound(delta) {
   const newRound = currentResultsRound + delta;
