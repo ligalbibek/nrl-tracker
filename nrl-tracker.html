@@ -147,7 +147,6 @@
   .round-nav button:hover { background: var(--accent); color: #000; }
   .round-nav span { font-size: 13px; color: var(--text2); min-width: 70px; text-align: center; }
 
-  /* Ladder */
   .ladder-table {
     width: 100%;
     border-collapse: collapse;
@@ -245,7 +244,6 @@
   .pd-pos { color: var(--green); }
   .pd-neg { color: var(--red); }
 
-  /* Match cards */
   .matches-list {
     display: flex;
     flex-direction: column;
@@ -310,7 +308,6 @@
     grid-column: 1 / -1;
   }
 
-  /* Predictions */
   .prediction-card {
     background: var(--card2);
     border-radius: 8px;
@@ -402,7 +399,6 @@
   .confidence-med { background: var(--orange); }
   .confidence-low { background: var(--red); }
 
-  /* Stats panel */
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -429,7 +425,6 @@
     margin-top: 4px;
   }
 
-  /* Method panel */
   .method-panel {
     padding: 16px;
     font-size: 13px;
@@ -489,31 +484,6 @@
     color: var(--orange);
     font-size: 13px;
   }
-
-  .tabs {
-    display: flex;
-    gap: 2px;
-    padding: 8px 8px 0;
-  }
-
-  .tab {
-    padding: 8px 16px;
-    font-size: 12px;
-    font-weight: 600;
-    border: none;
-    background: transparent;
-    color: var(--text2);
-    cursor: pointer;
-    border-radius: 6px 6px 0 0;
-    transition: all 0.2s;
-  }
-
-  .tab.active {
-    background: var(--card2);
-    color: var(--accent);
-  }
-
-  .tab:hover { color: var(--text); }
 
   .streak-w { color: var(--green); font-weight: 600; }
   .streak-l { color: var(--red); font-weight: 600; }
@@ -589,7 +559,6 @@
 
 <div class="container">
 
-  <!-- Prediction Accuracy Stats -->
   <div class="card full-width">
     <div class="stats-grid" id="statsGrid">
       <div class="stat-item"><div class="stat-value" id="statRound">-</div><div class="stat-label">Current Round</div></div>
@@ -599,7 +568,6 @@
     </div>
   </div>
 
-  <!-- Ladder -->
   <div class="card">
     <div class="card-header">
       <h2>Ladder</h2>
@@ -611,7 +579,6 @@
     </div>
   </div>
 
-  <!-- Predictions -->
   <div class="card">
     <div class="card-header">
       <h2>Predictions</h2>
@@ -628,7 +595,6 @@
     </div>
   </div>
 
-  <!-- Recent Results -->
   <div class="card">
     <div class="card-header">
       <h2>Recent Results</h2>
@@ -645,7 +611,6 @@
     </div>
   </div>
 
-  <!-- Prediction Method -->
   <div class="card">
     <div class="card-header">
       <h2>Prediction Model</h2>
@@ -688,7 +653,7 @@ const TEAM_COLORS = {
   'Knights': '#003c71', 'Rabbitohs': '#003e1f', 'Panthers': '#221f20',
   'Raiders': '#97d700', 'Roosters': '#003c71', 'Sea Eagles': '#6f263d',
   'Sharks': '#00a4d1', 'Storm': '#592c82', 'Titans': '#00adef',
-  'Warriors': '#003831', 'Wests Tigers': '#f47920', 'Sea Eagles': '#6f263d',
+  'Warriors': '#003831', 'Wests Tigers': '#f47920',
 };
 
 const TEAM_ABBR = {
@@ -771,16 +736,13 @@ function renderLadder(data) {
     const pdClass = pd >= 0 ? 'pd-pos' : 'pd-neg';
     const pdStr = pd >= 0 ? `+${pd}` : `${pd}`;
 
-    // Movement arrow
     let mvmt = '';
     if (p.movement === 'up') mvmt = '<span class="movement up">&#9650;</span>';
     else if (p.movement === 'down') mvmt = '<span class="movement down">&#9660;</span>';
 
-    // Form badges
     const form = (s.form || '').split('').slice(-5);
     const formHtml = form.map(f => `<div class="form-badge ${f}">${f}</div>`).join('');
 
-    // Streak
     const streak = s.streak || '-';
     const streakClass = streak.startsWith('W') ? 'streak-w' : (streak.startsWith('L') ? 'streak-l' : '');
 
@@ -816,41 +778,79 @@ async function loadDraw(round) {
   }
 }
 
-function findCurrentAndUpcomingRound(drawData) {
-  if (!drawData || !drawData.fixtures) return;
-  const fixtures = drawData.fixtures;
-  const hasCompleted = fixtures.some(f => f.matchMode === 'Post');
-  const hasPre = fixtures.some(f => f.matchMode === 'Pre');
-  const hasLive = fixtures.some(f => f.matchMode === 'Live');
-
-  if (hasLive || (hasCompleted && hasPre)) {
-    // Currently mid-round
-    return 'current';
-  }
-  if (hasPre && !hasCompleted) return 'upcoming';
-  if (hasCompleted && !hasPre) return 'completed';
-  return 'unknown';
-}
+// ── FIX: Scan all rounds in parallel, then pick the correct "current" round ──
+// Strategy:
+//   1. Fetch all rounds 1–27 concurrently (fast).
+//   2. Walk through them in order:
+//      - A round with any LIVE game  → that IS the current round.
+//      - A round with a mix of Post + Pre games → that IS the current round (mid-round).
+//      - A round with only Pre games and no Post games → that is the NEXT upcoming round;
+//        the previous round (all Post) is the last completed round.
+//      - A round with only Post games → fully completed, keep scanning.
+//      - A round with no fixtures / null → season hasn't reached it yet; stop here.
+//   3. latestRound is set to whichever round is "live/current/next-upcoming".
+//      predRound  → latestRound (show upcoming fixtures to predict).
+//      resultsRound → last fully-completed round.
 
 async function findLatestRound() {
-  // Start from round 1 and find the latest active round
+  // Fetch all rounds concurrently for speed
+  const fetches = [];
   for (let r = 1; r <= 27; r++) {
-    const data = await loadDraw(r);
+    fetches.push(loadDraw(r));
+  }
+  await Promise.all(fetches);
+
+  let detectedRound = 1;
+  let lastCompletedRound = 1;
+
+  for (let r = 1; r <= 27; r++) {
+    const data = drawByRound[r];
+
+    // No data or empty fixtures → season hasn't reached this round
     if (!data || !data.fixtures || data.fixtures.length === 0) {
-      latestRound = Math.max(1, r - 1);
+      // Use the last round we found data for
       break;
     }
-    const status = findCurrentAndUpcomingRound(data);
-    if (status === 'upcoming' || status === 'current') {
-      latestRound = r;
+
+    const fixtures = data.fixtures;
+    const hasLive      = fixtures.some(f => f.matchMode === 'Live');
+    const hasPost      = fixtures.some(f => f.matchMode === 'Post');
+    const hasPre       = fixtures.some(f => f.matchMode === 'Pre');
+
+    if (hasLive) {
+      // A game is live right now — this is unambiguously the current round
+      detectedRound = r;
+      lastCompletedRound = Math.max(1, r - 1);
       break;
     }
-    if (r === 27) latestRound = 27;
+
+    if (hasPost && hasPre) {
+      // Mid-round: some games done, some still to play
+      detectedRound = r;
+      lastCompletedRound = r; // show partial results for this round too
+      break;
+    }
+
+    if (hasPre && !hasPost) {
+      // This round hasn't started yet — it's the next upcoming round
+      detectedRound = r;
+      lastCompletedRound = Math.max(1, r - 1);
+      break;
+    }
+
+    if (hasPost && !hasPre) {
+      // Fully completed round — keep scanning forward
+      lastCompletedRound = r;
+      detectedRound = r; // fallback: if no future round found, stay on last completed
+      continue;
+    }
   }
 
-  document.getElementById('statRound').textContent = latestRound;
+  latestRound = detectedRound;
   currentPredRound = latestRound;
-  currentResultsRound = Math.max(1, latestRound - (findCurrentAndUpcomingRound(drawByRound[latestRound]) === 'upcoming' ? 1 : 0));
+  currentResultsRound = lastCompletedRound;
+
+  document.getElementById('statRound').textContent = latestRound;
 
   renderPredictions();
   renderResults();
@@ -866,16 +866,13 @@ function getTeamRating(nickname) {
   const p = positions[idx];
   const s = p.stats || {};
 
-  // Ladder position score (0-100, higher = better)
   const posScore = ((total - idx) / total) * 100;
 
-  // Points differential score
   const pd = parseInt(s['points difference']) || 0;
   const played = parseInt(s.played) || 1;
   const pdPerGame = pd / played;
   const pdScore = Math.min(100, Math.max(0, 50 + pdPerGame * 2.5));
 
-  // Form score
   const form = (s.form || '').split('').slice(-5);
   let formScore = 50;
   if (form.length > 0) {
@@ -883,11 +880,9 @@ function getTeamRating(nickname) {
     formScore = (wins / form.length) * 100;
   }
 
-  // Win rate
   const wins = parseInt(s.wins) || 0;
   const winRate = played > 0 ? (wins / played) * 100 : 50;
 
-  // Composite
   return posScore * 0.3 + pdScore * 0.25 + formScore * 0.2 + winRate * 0.15 + 50 * 0.1;
 }
 
@@ -895,20 +890,15 @@ function predictMatch(homeTeam, awayTeam) {
   let homeRating = getTeamRating(homeTeam);
   let awayRating = getTeamRating(awayTeam);
 
-  // Home advantage
   homeRating += 5;
 
   const diff = homeRating - awayRating;
-
-  // Logistic function for probability
   const homeProb = 1 / (1 + Math.pow(10, -diff / 30));
   const awayProb = 1 - homeProb;
 
-  // Predicted margin (roughly 0.5 pts per probability %)
   const marginScale = Math.abs(diff) * 0.5;
   const predictedMargin = Math.round(Math.max(1, marginScale));
 
-  // Confidence
   const maxProb = Math.max(homeProb, awayProb);
   let confidence = 'low';
   if (maxProb > 0.7) confidence = 'high';
@@ -924,6 +914,9 @@ function predictMatch(homeTeam, awayTeam) {
 }
 
 function renderPredictions() {
+  // Don't render until findLatestRound() has set the correct round
+  if (currentPredRound === null) return;
+
   const container = document.getElementById('predictionsContainer');
   const label = document.getElementById('predRoundLabel');
   label.textContent = `Round ${currentPredRound}`;
@@ -939,27 +932,20 @@ function renderPredictions() {
   const upcoming = fixtures.filter(f => f.matchMode === 'Pre' || f.matchMode === 'Live');
 
   if (upcoming.length === 0) {
-    // Show completed games with "predictions" vs actuals
     const completed = fixtures.filter(f => f.matchMode === 'Post');
     if (completed.length === 0) {
       container.innerHTML = '<div class="error-msg">No fixtures for this round.</div>';
       return;
     }
-    container.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text2);text-align:center;">Round completed - showing result predictions</div>';
-    let html = container.innerHTML;
-    completed.forEach(f => {
-      html += renderPredictionCard(f, true);
-    });
+    let html = '<div style="padding:8px;font-size:12px;color:var(--text2);text-align:center;">Round completed — showing prediction vs result</div>';
+    completed.forEach(f => { html += renderPredictionCard(f, true); });
     container.innerHTML = html;
     countUpcoming();
     return;
   }
 
   let html = '';
-  upcoming.forEach(f => {
-    html += renderPredictionCard(f, false);
-  });
-
+  upcoming.forEach(f => { html += renderPredictionCard(f, false); });
   container.innerHTML = html;
   countUpcoming();
 }
@@ -973,7 +959,6 @@ function renderPredictionCard(fixture, isCompleted) {
   const awayAbbr = getTeamAbbr(awayNick);
 
   const pred = predictMatch(homeNick, awayNick);
-
   const isLive = fixture.matchMode === 'Live';
 
   let kickoff = '';
@@ -993,7 +978,7 @@ function renderPredictionCard(fixture, isCompleted) {
     const actualWinner = hs > as ? 'home' : 'away';
     const correct = actualWinner === pred.favoured;
     resultNote = `<div style="margin-top:6px;font-size:11px;text-align:center;color:${correct ? 'var(--green)' : 'var(--red)'}">
-      Result: ${hs} - ${as} | Prediction ${correct ? 'CORRECT' : 'WRONG'}</div>`;
+      Result: ${hs} - ${as} | Prediction ${correct ? 'CORRECT ✓' : 'WRONG ✗'}</div>`;
   }
 
   return `<div class="prediction-card">
@@ -1055,7 +1040,6 @@ function renderResults() {
     const hs = f.homeTeam?.score ?? '-';
     const as = f.awayTeam?.score ?? '-';
     const isLive = f.matchMode === 'Live';
-
     const venue = f.venue || '';
     const gameTime = f.clock?.gameTime || '';
 
@@ -1131,7 +1115,6 @@ document.getElementById('seasonSelect').addEventListener('change', (e) => {
   refreshAll();
 });
 
-// Initial load
 (async () => {
   await loadLadder();
   await findLatestRound();
@@ -1139,15 +1122,15 @@ document.getElementById('seasonSelect').addEventListener('change', (e) => {
   document.getElementById('lastUpdate').textContent =
     `Updated ${now.toLocaleTimeString('en-AU')}`;
 
-  // Auto-refresh every 60 seconds
   refreshTimer = setInterval(async () => {
     await loadLadder();
-    // Reload current rounds
     if (currentPredRound) {
+      delete drawByRound[currentPredRound];
       await loadDraw(currentPredRound);
       renderPredictions();
     }
-    if (currentResultsRound) {
+    if (currentResultsRound && currentResultsRound !== currentPredRound) {
+      delete drawByRound[currentResultsRound];
       await loadDraw(currentResultsRound);
       renderResults();
     }
