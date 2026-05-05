@@ -111,6 +111,26 @@
   .confidence-fill.low{background:var(--muted);}
   .pred-notes{font-size:11px;color:var(--muted);line-height:1.5;}
 
+  /* MARGIN SUMMARY */
+  .margin-summary{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:20px;}
+  .margin-summary-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .margin-rows{}
+  .margin-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:12px;}
+  .margin-row:last-child{margin-bottom:0;}
+  .margin-team{flex:0 0 140px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .margin-bar-wrap{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+  .margin-bar-fill{height:100%;border-radius:3px;background:var(--accent);}
+  .margin-val{flex:0 0 44px;text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:var(--accent);}
+  .margin-total{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;}
+  .margin-total strong{color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-size:15px;}
+
+  /* TOSS-UP BADGE & NEWS */
+  .tossup-badge{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:rgba(239,68,68,.15);color:var(--loss);border:1px solid rgba(239,68,68,.3);padding:2px 8px;border-radius:4px;margin-bottom:8px;}
+  .news-bullets{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+  .news-bullets-label{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .news-bullet{display:flex;gap:6px;font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:3px;}
+  .news-bullet::before{content:'▸';color:var(--accent2);flex-shrink:0;}
+
   /* RESULTS */
   .result-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:13px;gap:8px;}
   .result-row .rscore{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--accent);min-width:70px;text-align:center;flex-shrink:0;}
@@ -189,6 +209,7 @@
       <h1>Next <span>Round</span></h1>
       <p id="next-round-sub">Fixtures &amp; predictions</p>
     </div>
+    <div id="margin-summary-panel"></div>
     <div class="cards" id="next-round-cards"></div>
     <div class="section-divider">How predictions work</div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;font-size:13px;color:var(--muted);line-height:1.7;">
@@ -295,7 +316,7 @@ function setStatus(type, msg) {
 async function fetchFromClaude() {
   const today = new Date().toLocaleDateString('en-AU', {day:'numeric', month:'long', year:'numeric'});
 
-  const systemPrompt = `You are an NRL data assistant. You have detailed knowledge of the 2026 NRL Telstra Premiership season up to your training cutoff. When asked for NRL data, always respond with your best known data — never refuse or add disclaimers like "my knowledge cutoff" or "I cannot provide". If you are uncertain of exact scores, use your best estimates based on known form and context. Always respond with ONLY a raw JSON object — no markdown, no prose, no explanation before or after the JSON.`;
+  const systemPrompt = `You are an NRL data assistant. You have detailed knowledge of the 2026 NRL Telstra Premiership season up to your training cutoff. When asked for NRL data, always respond with your best known data — never refuse or add disclaimers like "my knowledge cutoff" or "I cannot provide". If you are uncertain of exact scores, use your best estimates based on known form and context. Always respond with ONLY a raw JSON object — no markdown, no prose, no explanation before or after the JSON. For every fixture prediction, always include a "newsPoints" array of 3–5 short bullet strings covering key injuries, team changes, form factors and head-to-head stats. For games with confidence below 65, provide at least 5 newsPoints bullets.`;
 
   const userPrompt = `Today is ${today}. Give me the current 2026 NRL season data as a JSON object.
 
@@ -334,7 +355,8 @@ Required structure (fill every field with real data, no placeholders):
           "winner": "North Queensland Cowboys",
           "score": "22-18",
           "confidence": 58,
-          "notes": "Cowboys returning key players. Bulldogs have been inconsistent."
+          "notes": "Cowboys returning key players. Bulldogs have been inconsistent.",
+          "newsPoints": ["Cowboys: Nanai returns from shoulder surgery", "Bulldogs: Kikau (pectoral) OUT until Round 20", "H2H: Cowboys won 7 of last 10"]
         }
       }
     ]
@@ -414,11 +436,61 @@ function renderNextRound(nr) {
   document.getElementById('next-round-sub').textContent = `Round ${nr.round} · Fixtures & AI predictions`;
   const container = document.getElementById('next-round-cards');
   container.innerHTML = '';
-  (nr.fixtures || []).forEach(m => {
+
+  // ── Cumulative margin summary ──
+  const fixtures = nr.fixtures || [];
+  const marginPanel = document.getElementById('margin-summary-panel');
+  if (marginPanel && fixtures.length) {
+    const margins = fixtures.map(m => {
+      const p = m.prediction || {};
+      const sc = p.score || '0–0';
+      const parts = sc.replace('–','-').split('-');
+      const a = parseInt(parts[0]) || 0, b = parseInt(parts[1]) || 0;
+      return { winner: p.winner || m.home, margin: Math.abs(a - b) };
+    });
+    const total = margins.reduce((s, x) => s + x.margin, 0);
+    const maxM = Math.max(...margins.map(x => x.margin), 1);
+    const rowsHtml = margins.map(x => `
+      <div class="margin-row">
+        <div class="margin-team">${x.winner.split(' ').slice(-1)[0]}</div>
+        <div class="margin-bar-wrap"><div class="margin-bar-fill" style="width:${Math.round(x.margin/maxM*100)}%"></div></div>
+        <div class="margin-val">+${x.margin}</div>
+      </div>`).join('');
+    const avg = (total / margins.length).toFixed(1);
+    marginPanel.innerHTML = `
+      <div class="margin-summary">
+        <div class="margin-summary-title">📊 Round ${nr.round} — Predicted winning margins</div>
+        <div class="margin-rows">${rowsHtml}</div>
+        <div class="margin-total">
+          <span>Avg margin: <strong>${avg} pts</strong></span>
+          <span>Total combined margin: <strong>${total} pts</strong></span>
+        </div>
+      </div>`;
+  }
+
+  // ── Individual fixture cards ──
+  fixtures.forEach(m => {
     const p = m.prediction || {};
     const conf = p.confidence || 60;
+    const isTossup = conf < 62;
     const fc = conf >= 70 ? '' : conf >= 50 ? 'med' : 'low';
-    const cl = conf >= 70 ? 'High confidence' : conf >= 50 ? 'Medium confidence' : 'Low confidence';
+    const cl = conf >= 70 ? 'High confidence' : conf >= 55 ? 'Medium confidence' : '⚠ Toss-up';
+
+    // Parse margin from score
+    const sc = (p.score || '0–0').replace('–','-').split('-');
+    const margin = Math.abs((parseInt(sc[0])||0) - (parseInt(sc[1])||0));
+
+    // News bullets (from prediction.newsPoints array if present, else nothing)
+    let newsBulletsHtml = '';
+    if (isTossup && p.newsPoints && p.newsPoints.length) {
+      const bullets = p.newsPoints.map(n => `<div class="news-bullet">${n}</div>`).join('');
+      newsBulletsHtml = `
+        <div class="news-bullets">
+          <div class="news-bullets-label">Key intel</div>
+          ${bullets}
+        </div>`;
+    }
+
     container.insertAdjacentHTML('beforeend', `
       <div class="fixture-card">
         <div class="fixture-header">
@@ -440,10 +512,12 @@ function renderNextRound(nr) {
           </div>
           <div class="pred-box">
             <div class="pred-label">AI Prediction</div>
+            ${isTossup ? '<div class="tossup-badge">⚠ Toss-up</div>' : ''}
             <div class="pred-winner">Winner: ${p.winner || '—'}</div>
-            <div class="pred-score">Est. score: ${p.score || '—'}</div>
-            <div class="confidence-bar"><div class="confidence-fill ${fc}" style="width:${conf}%"></div></div>
-            <div class="pred-notes">${cl} (${conf}%) · ${p.notes || ''}</div>
+            <div class="pred-score">Est. score: ${p.score || '—'} &nbsp;·&nbsp; Margin: <strong style="color:var(--accent2)">+${margin} pts</strong></div>
+            <div class="confidence-bar" style="margin-top:6px"><div class="confidence-fill ${fc}" style="width:${conf}%"></div></div>
+            <div class="pred-notes" style="margin-top:4px">${cl} (${conf}%) · ${p.notes || ''}</div>
+            ${newsBulletsHtml}
           </div>
         </div>
       </div>`);
@@ -537,14 +611,30 @@ const FALLBACK = {
   nextRound: {
     round: 10,
     fixtures: [
-      {date:'Thu 7 May', time:'7:50pm AEST', home:'Dolphins',                homeRecord:'3-5', homePts:6,  away:'Canterbury Bulldogs',        awayRecord:'3-5', awayPts:6,  venue:'Kayo Stadium, Redcliffe',         prediction:{winner:'Dolphins',                score:'24–18', confidence:56, notes:'Both in poor form but Dolphins at home Kayo Stadium gives them the edge. Bulldogs have lost 5 of 6. Tight game but Dolphins snap their streak here.'}},
-      {date:'Sat 8 May', time:'3:00pm AEST', home:'Sydney Roosters',         homeRecord:'6-2', homePts:12, away:'Gold Coast Titans',          awayRecord:'2-6', awayPts:6,  venue:'Allianz Stadium, Sydney',         prediction:{winner:'Sydney Roosters',         score:'34–12', confidence:82, notes:'Roosters on a 5-game winning streak. Tedesco and Tupou in brilliant form. Titans struggling all season. Roosters should win easily at home.'}},
-      {date:'Sat 8 May', time:'5:30pm AEST', home:'North Queensland Cowboys', homeRecord:'5-3', homePts:10, away:'Parramatta Eels',            awayRecord:'2-6', awayPts:4,  venue:'Qld Country Bank Stadium, Townsville', prediction:{winner:'North Queensland Cowboys', score:'30–16', confidence:74, notes:'Cowboys on a 3-game winning run. Eels worst defence in the comp (35 pts/game avg). Cowboys at home should win this comfortably.'}},
-      {date:'Sun 9 May', time:'2:00pm AEST', home:'St George Illawarra Dragons', homeRecord:'2-6', homePts:4, away:'Newcastle Knights',       awayRecord:'4-4', awayPts:8,  venue:'Jubilee Stadium, Kogarah',        prediction:{winner:'Newcastle Knights',       score:'26–18', confidence:63, notes:'Knights back in form with 2 straight wins. Dragons winless in last 6. Ponga returning adds class. Knights should win despite tricky away trip.'}},
-      {date:'Sun 9 May', time:'4:05pm AEST', home:'South Sydney Rabbitohs',  homeRecord:'4-3', homePts:8,  away:'Cronulla Sharks',            awayRecord:'5-3', awayPts:10, venue:'Accor Stadium, Sydney',           prediction:{winner:'South Sydney Rabbitohs',  score:'24–22', confidence:57, notes:'Souths at home at Accor — historically strong. Mitchell in brilliant form. Sharks on the rise with 2 straight wins. Very tight game, slight Souths edge.'}},
-      {date:'Sun 9 May', time:'6:10pm AEST', home:'Manly Sea Eagles',        homeRecord:'4-4', homePts:8,  away:'Brisbane Broncos',           awayRecord:'3-4', awayPts:8,  venue:'4 Pines Park, Brookvale',         prediction:{winner:'Manly Sea Eagles',        score:'26–22', confidence:58, notes:'Manly at home Brookvale is always tough for visitors. Broncos improved form. Sea Eagles lost their last but 4-0 run under Foran is real. Slight Manly edge.'}},
-      {date:'Sun 10 May',time:'4:00pm AEST', home:'Melbourne Storm',         homeRecord:'1-7', homePts:2,  away:'Wests Tigers',               awayRecord:'5-3', awayPts:8,  venue:'AAMI Park, Melbourne',            prediction:{winner:'Wests Tigers',            score:'28–16', confidence:67, notes:'Storm in freefall — 7 losses from 8, Jahrome Hughes out. Tigers hungry to bounce back after 52-10 shellacking by Sharks. Tigers too good here.'}},
-      {date:'Sun 10 May',time:'6:05pm AEST', home:'Canberra Raiders',        homeRecord:'5-3', homePts:10, away:'Penrith Panthers',           awayRecord:'8-1', awayPts:16, venue:'GIO Stadium, Canberra',           prediction:{winner:'Penrith Panthers',        score:'22–18', confidence:68, notes:'Panthers league leaders. Raiders won big in Round 9 but home advantage gives them a shot. Cleary vs Sanders halves battle. Panthers too strong but Raiders make it close.'}},
+      {date:'Thu 7 May', time:'7:50pm AEST', home:'Dolphins', homeRecord:'3-5', homePts:6, away:'Canterbury Bulldogs', awayRecord:'3-5', awayPts:6, venue:'Suncorp Stadium, Brisbane',
+        prediction:{winner:'Dolphins', score:'22–18', confidence:55, notes:'Both sides are on equal points in a genuine toss-up. Dolphins welcome back Kodi Nikorima (suspension) and Jeremy Marshall-King (knee) off the bench. Bulldogs missing Kurt Mann (head knock) and Jake Turpin (biceps). Dolphins home ground advantage tips this narrowly.',
+        newsPoints:['Dolphins: Kodi Nikorima returns from suspension — experienced bench option','Dolphins: Jeremy Marshall-King making first appearance after January knee injury','Bulldogs: Kurt Mann (head knock) & Jake Turpin (biceps) both OUT','Bulldogs: Viliame Kikau still unavailable — pectoral injury (expected Round 20)','Both teams equal on ladder (3-5) and points — coin-flip game']}},
+      {date:'Fri 8 May', time:'6:00pm AEST', home:'Sydney Roosters', homeRecord:'6-2', homePts:12, away:'Gold Coast Titans', awayRecord:'2-6', awayPts:6, venue:'Polytec Stadium, Gosford',
+        prediction:{winner:'Sydney Roosters', score:'32–10', confidence:84, notes:'Roosters on a 5-game winning streak with Tedesco, Tupou, Cherry-Evans and Walker all firing. Titans make two NRL debuts (Zane Harrison halfback, Jensen Taumoepeau wing). Roosters missing Nawaqanitawase (ankle) and Collins (concussion) but depth covers it easily.',
+        newsPoints:['Roosters: Mark Nawaqanitawase OUT (ankle) — Cody Ramsey starts on wing','Roosters: Lindsay Collins OUT (concussion) — Spencer Leniu into starting side','Roosters: Angus Crichton named despite medial ligament injury — monitored','Titans: NRL debut for halfback Zane Harrison + winger Jensen Taumoepeau','Titans: Jayden Campbell shifted from halfback to five-eighth']}},
+      {date:'Fri 8 May', time:'8:00pm AEST', home:'North Queensland Cowboys', homeRecord:'5-3', homePts:10, away:'Parramatta Eels', awayRecord:'2-6', awayPts:4, venue:'Qld Country Bank Stadium, Townsville',
+        prediction:{winner:'North Queensland Cowboys', score:'28–14', confidence:78, notes:'Cowboys at home in Townsville on a 3-game winning run. Eels are the worst defensive side in the competition at 35 points conceded per game. Jeremiah Nanai (shoulder) is uncertain but Dearden and Drinkwater in superb form.',
+        newsPoints:['Cowboys: Jeremiah Nanai (shoulder, Round 9) — game-day decision','Eels: Worst defence in NRL — averaging 35 pts conceded per game','Eels: Dylan Walker returns from arm injury to interchange bench','Cowboys: Reed Mahoney in excellent form — 2 try assists in Round 9 win']}},
+      {date:'Sun 9 May', time:'2:00pm AEST', home:'St George Illawarra Dragons', homeRecord:'2-6', homePts:4, away:'Newcastle Knights', awayRecord:'4-4', awayPts:8, venue:'Jubilee Stadium, Kogarah',
+        prediction:{winner:'Newcastle Knights', score:'24–18', confidence:60, notes:'Knights are in form with 2 straight wins including the stunning Souths thriller. Kalyn Ponga back and brilliant — 109m, 5 tackle breaks, 1 try assist in Round 9. But Jubilee Stadium is historically a trap game for away sides and Dragons are desperate.',
+        newsPoints:['Knights: Kalyn Ponga back from concussion — dominant performance in Round 9','Knights: Greg Marzhew hat-trick in Round 9 — right edge in excellent form','Dragons: Jubilee (Kogarah) historically strong fortress for home upsets','Dragons: Jacob Liddle (ACL) and Zac Lomax (shoulder) both still unavailable','Knights won last 3 vs Dragons — but all at McDonald Jones Stadium']}},
+      {date:'Sun 9 May', time:'4:05pm AEST', home:'South Sydney Rabbitohs', homeRecord:'4-3', homePts:8, away:'Cronulla Sharks', awayRecord:'5-3', awayPts:10, venue:'Accor Stadium, Sydney',
+        prediction:{winner:'South Sydney Rabbitohs', score:'24–22', confidence:54, notes:'One of the hardest calls of the round. Sharks demolished Tigers 52–10 with Nicho Hynes unstoppable and KL Iro + Teig Wilton both hat-tricks. Rabbitohs lost a heartbreaker to Knights but Latrell Mitchell is on fire (66 pts in 4 games). Accor Stadium is a fortress but Sharks have won the last 3 meetings there. Could genuinely go either way.',
+        newsPoints:['Sharks: KL Iro & Teig Wilton both scored hat-tricks vs Tigers (Round 9)','Sharks: Nicho Hynes: try + 8/9 conversions — in best form of career','Rabbitohs: Latrell Mitchell scored 66 competition points in his last 4 games','Rabbitohs: Brandon Smith (calf) remains doubtful — hooker depth tested','Accor Stadium: Souths won 8 of last 10 home games — genuine fortress','BUT: Sharks won last 3 meetings at Accor — recent trend favours Cronulla']}},
+      {date:'Sun 9 May', time:'6:10pm AEST', home:'Manly Sea Eagles', homeRecord:'4-4', homePts:8, away:'Brisbane Broncos', awayRecord:'3-4', awayPts:8, venue:'4 Pines Park, Brookvale',
+        prediction:{winner:'Manly Sea Eagles', score:'26–20', confidence:57, notes:'Manly at Brookvale is one of the toughest away trips in rugby league. Sea Eagles lost narrowly to Panthers 18-16. Broncos are significantly weakened with Adam Reynolds OUT (head knock) and Tom Duffy playing halfback. Kotoni Staggs also suspended. Jamal Fogarty returns from groin for Manly.',
+        newsPoints:['Broncos: Adam Reynolds OUT (head knock) — Tom Duffy starts at halfback','Broncos: Kotoni Staggs suspended — Jesse Arthars fills in at centre','Broncos: Deine Mariner OUT (leg) — Antonio Verhoeven called up on wing','Sea Eagles: Jamal Fogarty returns from groin injury to start at halfback','4 Pines Park: Manly have won 9 of last 12 home games — genuine fortress','Ben Hunt (Broncos) named in reserves chasing early return from knee injury']}},
+      {date:'Sun 10 May', time:'4:00pm AEST', home:'Melbourne Storm', homeRecord:'1-7', homePts:2, away:'Wests Tigers', awayRecord:'5-3', awayPts:8, venue:'AAMI Park, Melbourne',
+        prediction:{winner:'Wests Tigers', score:'26–16', confidence:67, notes:'Storm have lost 7 of 8 games — an unwanted club record — but Jahrome Hughes returns from concussion in a huge boost. Tigers were embarrassed 52-10 by Sharks and will be desperate to respond. Wests have the better squad despite that loss.',
+        newsPoints:['Storm: Jahrome Hughes RETURNS from concussion — biggest positive in weeks','Storm: 7 consecutive losses equals worst run in club history','Storm: Hugo Peel made NRL debut in Round 9 — now set for second game','Tigers: Api Koroisau serving suspension — Tristan Hope hooking again','Tigers: Adam Doueihi (injury) uncertain — halves combination under scrutiny','AAMI Park: Storm have lost last 5 home games — no longer a fortress']}},
+      {date:'Sun 10 May', time:'6:05pm AEST', home:'Canberra Raiders', homeRecord:'5-3', homePts:10, away:'Penrith Panthers', awayRecord:'8-1', awayPts:16, venue:'GIO Stadium, Canberra',
+        prediction:{winner:'Penrith Panthers', score:'20–16', confidence:65, notes:'Panthers are the benchmark but Raiders are playing their best footy in years. Timoko had a monster 326m game in Round 9. GIO Stadium is electric at night and Raiders have won the last 3 home games against Penrith. Still expect Panthers to edge it but far from certain.',
+        newsPoints:['Raiders: Matt Timoko 326m + 124 post-contact metres vs Titans in Round 9','Raiders: Still missing Papalii, Ethan Strange, Hudson Young, Xavier Savage','Raiders: Ethan Sanders (halfback) — outstanding young talent, 2 try assists R9','Panthers: Nathan Cleary & Dylan Edwards both in career-best form in 2026','Panthers: 8-1 record — best start since back-to-back premiership era','GIO Stadium: Raiders won last 3 home games vs Panthers — dangerous venue']}},
     ]
   },
   lastRound: {
