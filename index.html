@@ -241,9 +241,9 @@
 //  • Stale = cached round != latest round, or
 //    cache older than 12h, or CACHE_VERSION bump
 // ─────────────────────────────────────────────
-const CACHE_KEY  = 'nrl26_v4_data';
-const CACHE_META_KEY = 'nrl26_v4_meta';
-const CACHE_VERSION = '4';
+const CACHE_KEY  = 'nrl26_v5_data';
+const CACHE_META_KEY = 'nrl26_v5_meta';
+const CACHE_VERSION = '5';
 const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 function loadCache() {
@@ -318,67 +318,27 @@ function setStatus(type, msg) {
 async function fetchFromClaude() {
   const today = new Date().toLocaleDateString('en-AU', {day:'numeric', month:'long', year:'numeric'});
 
-  const systemPrompt = `You are an NRL data assistant. You have detailed knowledge of the 2026 NRL Telstra Premiership season up to your training cutoff. When asked for NRL data, always respond with your best known data — never refuse or add disclaimers like "my knowledge cutoff" or "I cannot provide". If you are uncertain of exact scores, use your best estimates based on known form and context. Always respond with ONLY a raw JSON object — no markdown, no prose, no explanation before or after the JSON. For every fixture prediction, always include a "newsPoints" array of 3–5 short bullet strings covering key injuries, team changes, form factors and head-to-head stats. For games with confidence below 65, provide at least 5 newsPoints bullets.`;
+  const systemPrompt = `You are an NRL data assistant with detailed knowledge of the 2026 NRL Telstra Premiership. Always respond with your best known data. Never refuse or add disclaimers. Always respond with ONLY a raw JSON object. No markdown fences, no prose, no apostrophes in string values - use "cannot" not "can't", use full words not contractions. All string values must use only straight double quotes. No trailing commas.`;
 
-  const userPrompt = `Today is ${today}. Give me the current 2026 NRL season data as a JSON object.
+  const userPrompt = `Today is ${today}. Respond with ONLY a valid JSON object for the current 2026 NRL season. Use this exact structure:
 
-Use your most up-to-date knowledge of the 2026 NRL season. Output ONLY the JSON — nothing else.
+{"currentRound":NUMBER,"season":"2026","updatedDate":"${today}","summaryCards":[{"label":"Current Leaders","value":"TEAM","sub":"RECORD"},{"label":"Best Form","value":"TEAM","sub":"DESCRIPTION"},{"label":"Wooden Spoon","value":"TEAM","sub":"RECORD"},{"label":"Next Round","value":"DATE","sub":"DESCRIPTION"}],"ladder":[{"pos":1,"team":"FULL TEAM NAME","p":0,"w":0,"d":0,"l":0,"b":0,"pf":0,"pa":0,"pts":0,"form":["w","l","w","w","l"]},... all 17 teams],"nextRound":{"round":NUMBER,"fixtures":[{"date":"DAY D Mon","time":"H:MMpm AEST","home":"FULL TEAM NAME","homeRecord":"W-L","homePts":0,"away":"FULL TEAM NAME","awayRecord":"W-L","awayPts":0,"venue":"VENUE NAME","prediction":{"winner":"FULL TEAM NAME","score":"NN-NN","confidence":NUMBER,"notes":"2-3 sentences about form injuries venue. No apostrophes use full words.","keyFactors":["factor one","factor two","factor three"]}},... all games]},"lastRound":{"round":NUMBER,"results":[{"home":"FULL TEAM NAME","homeScore":0,"away":"FULL TEAM NAME","awayScore":0,"venue":"VENUE Day D Mon"},...]}}
 
-Required structure (fill every field with real data, no placeholders):
-
-{
-  "currentRound": 9,
-  "season": "2026",
-  "updatedDate": "${today}",
-  "summaryCards": [
-    {"label": "Current Leaders", "value": "Panthers", "sub": "6W-1L · 14 pts · 1st"},
-    {"label": "Best Form Team", "value": "Wests Tigers", "sub": "4-game winning streak"},
-    {"label": "Wooden Spoon Watch", "value": "Melbourne Storm", "sub": "1W-6L · 2 pts · 17th"},
-    {"label": "Next Round Starts", "value": "1 May", "sub": "Thu 1 - Sun 3 May 2026"}
-  ],
-  "ladder": [
-    {"pos":1,"team":"Penrith Panthers","p":7,"w":6,"d":0,"l":1,"b":1,"pf":238,"pa":96,"pts":14,"form":["w","w","w","l","w","w","w"]},
-    {"pos":2,"team":"Wests Tigers","p":6,"w":5,"d":0,"l":1,"b":1,"pf":192,"pa":118,"pts":12,"form":["b","w","l","w","w","w","w"]}
-  ],
-  "nextRound": {
-    "round": 9,
-    "fixtures": [
-      {
-        "date": "Thu 1 May",
-        "time": "8:00pm AEST",
-        "home": "Canterbury Bulldogs",
-        "homeRecord": "3-4",
-        "homePts": 6,
-        "away": "North Queensland Cowboys",
-        "awayRecord": "3-4",
-        "awayPts": 8,
-        "venue": "Accor Stadium, Sydney",
-        "prediction": {
-          "winner": "North Queensland Cowboys",
-          "score": "22-18",
-          "confidence": 58,
-          "notes": "Cowboys returning key players. Bulldogs have been inconsistent.",
-          "newsPoints": ["Cowboys: Nanai returns from shoulder surgery", "Bulldogs: Kikau (pectoral) OUT until Round 20", "H2H: Cowboys won 7 of last 10"]
-        }
-      }
-    ]
-  },
-  "lastRound": {
-    "round": 8,
-    "results": [
-      {"home": "Wests Tigers", "homeScore": 33, "away": "Canberra Raiders", "awayScore": 14, "venue": "Leichhardt Oval · Thu 23 Apr"}
-    ]
-  }
-}
-
-Now respond with the complete, accurate version of this JSON for the current 2026 NRL season. All 17 teams in the ladder. All fixtures for the next round. All results for the last completed round.`;
+Rules:
+- All 17 teams on ladder ordered 1-17
+- All fixtures for the NEXT upcoming round
+- All results for the LAST completed round  
+- NO apostrophes anywhere - write "does not" not "doesn't"
+- NO trailing commas
+- scores in prediction use dash not en-dash: "22-18" not "22-18"
+- keyFactors: array of 3-5 short strings, no apostrophes`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
+      max_tokens: 6000,
       system: systemPrompt,
       messages: [{role: 'user', content: userPrompt}]
     })
@@ -388,14 +348,31 @@ Now respond with the complete, accurate version of this JSON for the current 202
   const raw = await res.json();
   const text = (raw.content || []).map(b => b.text || '').join('');
 
-  // Robust JSON extraction — find outermost { } even if there's surrounding text
+  // Extract JSON between outermost braces
   const firstBrace = text.indexOf('{');
   const lastBrace = text.lastIndexOf('}');
   if (firstBrace === -1 || lastBrace === -1) {
-    throw new Error(`No JSON found in response. Got: "${text.slice(0, 120)}…"`);
+    throw new Error(`No JSON in response: "${text.slice(0, 200)}"`);
   }
-  const jsonStr = text.slice(firstBrace, lastBrace + 1);
-  return JSON.parse(jsonStr);
+  let jsonStr = text.slice(firstBrace, lastBrace + 1);
+
+  // Repair common Claude JSON issues
+  jsonStr = jsonStr
+    .replace(/[\u2018\u2019]/g, "'")   // smart single quotes -> straight
+    .replace(/[\u201C\u201D]/g, '"')   // smart double quotes -> straight
+    .replace(/[\u2013\u2014]/g, '-')   // en/em dashes -> hyphen
+    .replace(/,\s*([}\]])/g, '$1')     // trailing commas
+    .replace(/([^\\])\\'/g, "$1'");    // escaped apostrophes
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch(e) {
+    // Log first parse error location for debugging
+    const match = e.message.match(/position (\d+)/);
+    const pos = match ? parseInt(match[1]) : 0;
+    console.error('JSON parse error near:', jsonStr.slice(Math.max(0,pos-40), pos+40));
+    throw new Error(`JSON parse failed: ${e.message}`);
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -445,9 +422,8 @@ function renderNextRound(nr) {
   if (marginPanel && fixtures.length) {
     const margins = fixtures.map(m => {
       const p = m.prediction || {};
-      const sc = p.score || '0–0';
-      const parts = sc.replace('–','-').split('-');
-      const a = parseInt(parts[0]) || 0, b = parseInt(parts[1]) || 0;
+      const sc = (p.score || '0-0').replace('–','-').split('-');
+      const a = parseInt(sc[0]) || 0, b = parseInt(sc[1]) || 0;
       return { winner: p.winner || m.home, margin: Math.abs(a - b) };
     });
     const total = margins.reduce((s, x) => s + x.margin, 0);
@@ -478,20 +454,24 @@ function renderNextRound(nr) {
     const fc = conf >= 70 ? '' : conf >= 50 ? 'med' : 'low';
     const cl = conf >= 70 ? 'High confidence' : conf >= 55 ? 'Medium confidence' : '⚠ Toss-up';
 
-    // Parse margin from score
-    const sc = (p.score || '0–0').replace('–','-').split('-');
+    // Parse margin from score (handle both - and –)
+    const sc = (p.score || '0-0').replace('–','-').split('-');
     const margin = Math.abs((parseInt(sc[0])||0) - (parseInt(sc[1])||0));
 
-    // News bullets (from prediction.newsPoints array if present, else nothing)
+    // News bullets — use keyFactors (API) or newsPoints (fallback)
+    const bullets = p.keyFactors || p.newsPoints || [];
     let newsBulletsHtml = '';
-    if (isTossup && p.newsPoints && p.newsPoints.length) {
-      const bullets = p.newsPoints.map(n => `<div class="news-bullet">${n}</div>`).join('');
+    if (isTossup && bullets.length) {
+      const bHtml = bullets.map(n => `<div class="news-bullet">${n}</div>`).join('');
       newsBulletsHtml = `
         <div class="news-bullets">
           <div class="news-bullets-label">Key intel</div>
-          ${bullets}
+          ${bHtml}
         </div>`;
     }
+
+    // Normalise score display (API returns "22-18", fallback has "22–18")
+    const scoreDisplay = (p.score || '—').replace('-', '–');
 
     container.insertAdjacentHTML('beforeend', `
       <div class="fixture-card">
@@ -516,7 +496,7 @@ function renderNextRound(nr) {
             <div class="pred-label">AI Prediction</div>
             ${isTossup ? '<div class="tossup-badge">⚠ Toss-up</div>' : ''}
             <div class="pred-winner">Winner: ${p.winner || '—'}</div>
-            <div class="pred-score">Est. score: ${p.score || '—'} &nbsp;·&nbsp; Margin: <strong style="color:var(--accent2)">+${margin} pts</strong></div>
+            <div class="pred-score">Est. score: ${scoreDisplay} &nbsp;·&nbsp; Margin: <strong style="color:var(--accent2)">+${margin} pts</strong></div>
             <div class="confidence-bar" style="margin-top:6px"><div class="confidence-fill ${fc}" style="width:${conf}%"></div></div>
             <div class="pred-notes" style="margin-top:4px">${cl} (${conf}%) · ${p.notes || ''}</div>
             ${newsBulletsHtml}
