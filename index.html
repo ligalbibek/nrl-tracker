@@ -235,43 +235,45 @@
 
 <script>
 // ─────────────────────────────────────────────
-//  WEEKLY CACHE — keyed to ISO Monday date
-//  Same week = use stored data, no API call
-//  New week (Monday) = fetch fresh from Claude
+//  CACHE — localStorage, keyed by round number
+//  • Shows cached data instantly on every load
+//  • Fetches fresh data in background if stale
+//  • Stale = cached round != latest round, or
+//    cache older than 12h, or CACHE_VERSION bump
 // ─────────────────────────────────────────────
-const CACHE_DATA = 'nrl26_data';
-const CACHE_META = 'nrl26_meta';
-const CACHE_VERSION = '3'; // bump to instantly bust all stored caches
-
-function getMondayKey() {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() + diff);
-  return mon.toISOString().slice(0, 10); // "2026-04-27"
-}
-
-function cacheValid() {
-  try {
-    const m = JSON.parse(sessionStorage.getItem(CACHE_META) || 'null');
-    return m && m.weekKey === getMondayKey() && m.version === CACHE_VERSION;
-  } catch { return false; }
-}
-
-function saveCache(data) {
-  try {
-    sessionStorage.setItem(CACHE_DATA, JSON.stringify(data));
-    sessionStorage.setItem(CACHE_META, JSON.stringify({
-      weekKey: getMondayKey(),
-      version: CACHE_VERSION,
-      at: new Date().toISOString()
-    }));
-  } catch(e) {}
-}
+const CACHE_KEY  = 'nrl26_v4_data';
+const CACHE_META_KEY = 'nrl26_v4_meta';
+const CACHE_VERSION = '4';
+const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 function loadCache() {
-  try { return JSON.parse(sessionStorage.getItem(CACHE_DATA) || 'null'); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch { return null; }
+}
+function loadMeta() {
+  try { return JSON.parse(localStorage.getItem(CACHE_META_KEY) || 'null'); } catch { return null; }
+}
+function saveCache(data) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    localStorage.setItem(CACHE_META_KEY, JSON.stringify({
+      version: CACHE_VERSION,
+      round: data.currentRound || 0,
+      at: new Date().toISOString()
+    }));
+  } catch(e) { console.warn('Cache write failed', e); }
+}
+function clearCache() {
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(CACHE_META_KEY);
+}
+
+function cacheIsStale() {
+  const meta = loadMeta();
+  if (!meta) return true;
+  if (meta.version !== CACHE_VERSION) return true;
+  const age = Date.now() - new Date(meta.at).getTime();
+  if (age > CACHE_MAX_AGE_MS) return true;
+  return false;
 }
 
 // ─────────────────────────────────────────────
@@ -552,19 +554,20 @@ function renderAll(data) {
   renderNextRound(data.nextRound);
   renderLastRound(typeof data.lastRound === 'object' ? data.lastRound : null);
 
-  const meta = (() => { try { return JSON.parse(sessionStorage.getItem(CACHE_META) || 'null'); } catch { return null; } })();
-  const fetchedAt = meta ? new Date(meta.at) : new Date();
-  const fetchStr = fetchedAt.toLocaleDateString('en-AU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
-  document.getElementById('cache-tag').textContent = `Updated ${fetchStr}`;
-  document.getElementById('footer-stamp').textContent = `Last fetched ${fetchStr} · Week of ${getMondayKey()}`;
+  const meta = loadMeta();
+  if (meta) {
+    const d = new Date(meta.at);
+    const fetchStr = d.toLocaleDateString('en-AU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    document.getElementById('cache-tag').textContent = `Updated ${fetchStr}`;
+    document.getElementById('footer-stamp').textContent = `Last fetched ${fetchStr} · Round ${meta.round}`;
+  }
 }
 
 // ─────────────────────────────────────────────
 //  FORCE REFRESH (clears weekly cache)
 // ─────────────────────────────────────────────
 async function forceRefresh() {
-  sessionStorage.removeItem(CACHE_DATA);
-  sessionStorage.removeItem(CACHE_META);
+  clearCache();
   document.getElementById('loading-screen').style.display = 'flex';
   document.getElementById('loading-screen').classList.remove('fade');
   await init();
@@ -652,55 +655,53 @@ const FALLBACK = {
   }
 };
 
+
 // ─────────────────────────────────────────────
-//  INIT
+//  INIT — show cached instantly, refresh in bg
 // ─────────────────────────────────────────────
 async function init() {
-  setLoader('Checking weekly cache…', 10);
+  const cached = loadCache();
 
-  // FAST PATH: valid cache for this Monday week — render instantly, no API call
-  if (cacheValid()) {
-    const cached = loadCache();
+  // Always render something immediately — no waiting
+  if (cached) {
+    renderAll(cached);
+    const meta = loadMeta();
+    const ageMs = meta ? Date.now() - new Date(meta.at).getTime() : null;
+    const ageStr = ageMs !== null
+      ? (ageMs < 3600000 ? `${Math.round(ageMs/60000)}m ago` : `${Math.round(ageMs/3600000)}h ago`)
+      : '';
+    setStatus('ok', `Round ${cached.currentRound} data · fetched ${ageStr}${cacheIsStale() ? ' · refreshing…' : ' · fresh'}`);
+    hideLoader();
+  } else {
+    setLoader('Fetching NRL data…', 20);
+    setStatus('loading', 'Fetching live NRL data…');
+  }
+
+  // Fetch fresh data if stale (or no cache at all)
+  if (cacheIsStale()) {
     if (cached) {
-      setLoader('Loading from cache…', 90);
-      renderAll(cached);
-      setStatus('ok', `Up to date for week of ${getMondayKey()} · Auto-refreshes each Monday`);
-      await new Promise(r => setTimeout(r, 250));
-      hideLoader();
-      return;
+      setStatus('loading', `Round ${cached.currentRound} cached · checking for updates…`);
     }
+    try {
+      const data = await fetchFromClaude();
+      saveCache(data);
+      renderAll(data);
+      const now = new Date().toLocaleTimeString('en-AU', {hour:'2-digit', minute:'2-digit'});
+      setStatus('ok', `Live · Round ${data.currentRound} · Updated ${now} · Refreshes every 12h`);
+    } catch (err) {
+      console.error('Fetch failed:', err);
+      if (!cached) {
+        renderAll(FALLBACK);
+        document.getElementById('cache-tag').textContent = 'Built-in snapshot · Round 10';
+      }
+      setStatus('error', `${err.message}${cached ? ' — showing last cached data' : ' — showing built-in snapshot'}`);
+    }
+    hideLoader();
   }
-
-  // SLOW PATH: new week — call Claude for fresh data
-  setLoader('New week detected — fetching latest NRL data…', 25);
-  setStatus('loading', 'Fetching fresh NRL data from AI…');
-
-  try {
-    setLoader('Asking Claude for current standings, fixtures & predictions…', 45);
-    const data = await fetchFromClaude();
-    setLoader('Processing response…', 82);
-    saveCache(data);
-    renderAll(data);
-
-    // Compute next Monday for display
-    const nextMon = new Date();
-    nextMon.setDate(nextMon.getDate() + ((8 - nextMon.getDay()) % 7 || 7));
-    const nextMonStr = nextMon.toLocaleDateString('en-AU', {weekday:'long', day:'numeric', month:'long'});
-    setStatus('ok', `Live data loaded · Next auto-refresh: ${nextMonStr}`);
-  } catch (err) {
-    console.error('Claude API failed:', err);
-    // Graceful fallback — do NOT cache so it retries on next page open
-    renderAll(FALLBACK);
-    setStatus('error', `Showing built-in Round 8 snapshot — live fetch failed: ${err.message}`);
-    document.getElementById('cache-tag').textContent = 'Snapshot: Round 8 (27 Apr 2026)';
-  }
-
-  setLoader('Done', 100);
-  await new Promise(r => setTimeout(r, 350));
-  hideLoader();
 }
 
 init();
+
 </script>
 </body>
 </html>
