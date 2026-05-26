@@ -241,9 +241,9 @@
 //  • Stale = cached round != latest round, or
 //    cache older than 12h, or CACHE_VERSION bump
 // ─────────────────────────────────────────────
-const CACHE_KEY  = 'nrl26_v5_data';
-const CACHE_META_KEY = 'nrl26_v5_meta';
-const CACHE_VERSION = '5';
+const CACHE_KEY  = 'nrl26_v7_data';
+const CACHE_META_KEY = 'nrl26_v7_meta';
+const CACHE_VERSION = '7';
 const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 function loadCache() {
@@ -313,64 +313,68 @@ function setStatus(type, msg) {
 }
 
 // ─────────────────────────────────────────────
-//  CLAUDE API FETCH
+//  FETCH — Claude with web search finds real data
 // ─────────────────────────────────────────────
 async function fetchFromClaude() {
   const today = new Date().toLocaleDateString('en-AU', {day:'numeric', month:'long', year:'numeric'});
+  const todayISO = new Date().toISOString().slice(0,10);
 
-  const systemPrompt = `You are an NRL data assistant with detailed knowledge of the 2026 NRL Telstra Premiership. Always respond with your best known data. Never refuse or add disclaimers. Always respond with ONLY a raw JSON object. No markdown fences, no prose, no apostrophes in string values - use "cannot" not "can't", use full words not contractions. All string values must use only straight double quotes. No trailing commas.`;
+  const systemPrompt = `You are an NRL data assistant. Today is ${today}. You have access to web search - use it to find the CURRENT and ACCURATE 2026 NRL season data before responding. Always search for the actual fixtures and results - never guess or hallucinate matchups. Respond with ONLY a raw JSON object. No markdown fences, no prose. No apostrophes in strings - write full words. Straight double quotes only. No trailing commas.`;
 
-  const userPrompt = `Today is ${today}. Respond with ONLY a valid JSON object for the current 2026 NRL season. Use this exact structure:
+  const userPrompt = `Search for the current 2026 NRL season data and respond with ONLY this JSON structure:
 
-{"currentRound":NUMBER,"season":"2026","updatedDate":"${today}","summaryCards":[{"label":"Current Leaders","value":"TEAM","sub":"RECORD"},{"label":"Best Form","value":"TEAM","sub":"DESCRIPTION"},{"label":"Wooden Spoon","value":"TEAM","sub":"RECORD"},{"label":"Next Round","value":"DATE","sub":"DESCRIPTION"}],"ladder":[{"pos":1,"team":"FULL TEAM NAME","p":0,"w":0,"d":0,"l":0,"b":0,"pf":0,"pa":0,"pts":0,"form":["w","l","w","w","l"]},... all 17 teams],"nextRound":{"round":NUMBER,"fixtures":[{"date":"DAY D Mon","time":"H:MMpm AEST","home":"FULL TEAM NAME","homeRecord":"W-L","homePts":0,"away":"FULL TEAM NAME","awayRecord":"W-L","awayPts":0,"venue":"VENUE NAME","prediction":{"winner":"FULL TEAM NAME","score":"NN-NN","confidence":NUMBER,"notes":"2-3 sentences about form injuries venue. No apostrophes use full words.","keyFactors":["factor one","factor two","factor three"]}},... all games]},"lastRound":{"round":NUMBER,"results":[{"home":"FULL TEAM NAME","homeScore":0,"away":"FULL TEAM NAME","awayScore":0,"venue":"VENUE Day D Mon"},...]}}
+{"currentRound":NUMBER,"season":"2026","updatedDate":"${today}","summaryCards":[{"label":"Current Leaders","value":"SHORT NAME","sub":"W-L record pts position"},{"label":"Best Form","value":"SHORT NAME","sub":"streak description"},{"label":"Wooden Spoon","value":"SHORT NAME","sub":"W-L record pts position"},{"label":"Next Round","value":"DATE","sub":"description"}],"ladder":[{"pos":1,"team":"FULL TEAM NAME","p":0,"w":0,"d":0,"l":0,"b":0,"pf":0,"pa":0,"pts":0,"form":["w","l","w","w","l"]}],"nextRound":{"round":NUMBER,"fixtures":[{"date":"DAY D Mon","time":"H:MMpm AEST","home":"FULL TEAM NAME","homeRecord":"W-L","homePts":0,"away":"FULL TEAM NAME","awayRecord":"W-L","awayPts":0,"venue":"VENUE NAME","prediction":{"winner":"FULL TEAM NAME","score":"NN-NN","confidence":50,"notes":"Analysis no apostrophes","keyFactors":["factor","factor","factor"]}}]},"lastRound":{"round":NUMBER,"results":[{"home":"FULL TEAM NAME","homeScore":0,"away":"FULL TEAM NAME","awayScore":0,"venue":"VENUE Day D Mon"}]}}
 
-Rules:
-- All 17 teams on ladder ordered 1-17
-- All fixtures for the NEXT upcoming round
-- All results for the LAST completed round  
-- NO apostrophes anywhere - write "does not" not "doesn't"
-- NO trailing commas
-- scores in prediction use dash not en-dash: "22-18" not "22-18"
-- keyFactors: array of 3-5 short strings, no apostrophes`;
+Search for: "NRL 2026 round fixtures ${todayISO}" and "NRL 2026 ladder standings" to get accurate data.
+- All 17 teams on ladder
+- EXACT fixtures for the next upcoming round (search to verify - do not guess)
+- All results for the last completed round
+- No apostrophes anywhere`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 6000,
+      max_tokens: 8000,
       system: systemPrompt,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       messages: [{role: 'user', content: userPrompt}]
     })
   });
 
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const raw = await res.json();
-  const text = (raw.content || []).map(b => b.text || '').join('');
 
-  // Extract JSON between outermost braces
+  // Extract the final text block (after tool use)
+  const text = (raw.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text || '')
+    .join('');
+
+  if (!text) throw new Error('No text in response — only tool calls returned');
+
   const firstBrace = text.indexOf('{');
   const lastBrace = text.lastIndexOf('}');
   if (firstBrace === -1 || lastBrace === -1) {
-    throw new Error(`No JSON in response: "${text.slice(0, 200)}"`);
+    throw new Error(`No JSON found: "${text.slice(0, 200)}"`);
   }
   let jsonStr = text.slice(firstBrace, lastBrace + 1);
 
-  // Repair common Claude JSON issues
+  // Repair common issues
   jsonStr = jsonStr
-    .replace(/[\u2018\u2019]/g, "'")   // smart single quotes -> straight
-    .replace(/[\u201C\u201D]/g, '"')   // smart double quotes -> straight
-    .replace(/[\u2013\u2014]/g, '-')   // en/em dashes -> hyphen
-    .replace(/,\s*([}\]])/g, '$1')     // trailing commas
-    .replace(/([^\\])\\'/g, "$1'");    // escaped apostrophes
+    .replace(/[\u2018\u2019\u02BC]/g, '')
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/,(\s*[}\]])/g, '$1')
+    .replace(/\\'/g, '');
 
   try {
     return JSON.parse(jsonStr);
   } catch(e) {
-    // Log first parse error location for debugging
     const match = e.message.match(/position (\d+)/);
     const pos = match ? parseInt(match[1]) : 0;
-    console.error('JSON parse error near:', jsonStr.slice(Math.max(0,pos-40), pos+40));
+    console.error('JSON parse fail near:', jsonStr.slice(Math.max(0,pos-80), pos+80));
     throw new Error(`JSON parse failed: ${e.message}`);
   }
 }
@@ -471,7 +475,12 @@ function renderNextRound(nr) {
     }
 
     // Normalise score display (API returns "22-18", fallback has "22–18")
-    const scoreDisplay = (p.score || '—').replace('-', '–');
+    const scoreDisplay = (p.score || '—').replace(/(\d+)-(\d+)/, '$1–$2');
+
+    // Determine which side wins for highlight
+    const winnerName = (p.winner || '').toLowerCase();
+    const homeWins = winnerName && m.home.toLowerCase().includes(winnerName.split(' ').pop().toLowerCase());
+    const awayWins = !homeWins && winnerName;
 
     container.insertAdjacentHTML('beforeend', `
       <div class="fixture-card">
@@ -482,13 +491,13 @@ function renderNextRound(nr) {
         <div class="fixture-body">
           <div class="kick-time">${m.time}</div>
           <div class="matchup">
-            <div class="team-side">
-              <div class="name">${m.home}</div>
+            <div class="team-side" style="${homeWins ? 'opacity:1' : 'opacity:0.45'}">
+              <div class="name" style="${homeWins ? 'color:var(--accent)' : ''}">${m.home}${homeWins ? ' ✓' : ''}</div>
               <div class="record">${m.homeRecord} · ${m.homePts} pts</div>
             </div>
             <div class="vs-box">VS</div>
-            <div class="team-side away">
-              <div class="name">${m.away}</div>
+            <div class="team-side away" style="${awayWins ? 'opacity:1' : 'opacity:0.45'}">
+              <div class="name" style="${awayWins ? 'color:var(--accent)' : ''}">${m.away}${awayWins ? ' ✓' : ''}</div>
               <div class="record">${m.awayRecord} · ${m.awayPts} pts</div>
             </div>
           </div>
@@ -565,72 +574,52 @@ function showTab(id, btn) {
 //  Used when Claude API is unreachable
 // ─────────────────────────────────────────────
 const FALLBACK = {
-  currentRound: 10, season: '2026', updatedDate: '5 May 2026',
+  currentRound: 13, season: '2026', updatedDate: '25 May 2026',
   summaryCards: [
-    {label:'Current Leaders', value:'Panthers', sub:'8W–1L · 16 pts · 1st'},
-    {label:'Joint 2nd', value:'Warriors', sub:'7W–2L · 14 pts · 2nd equal'},
-    {label:'Wooden Spoon Watch', value:'Melbourne Storm', sub:'1W–8L · 2 pts · 17th'},
-    {label:'Next Round Starts', value:'7 May', sub:'Thu 7 – Sun 10 May · Round 10'}
+    {label:'Current Leaders', value:'Panthers', sub:'Best record in comp - 1st'},
+    {label:'Best Form', value:'Sydney Roosters', sub:'Strong mid-season run'},
+    {label:'Wooden Spoon', value:'Melbourne Storm', sub:'Struggling near bottom'},
+    {label:'Next Round', value:'29 May', sub:'Round 13 - Fri 29 May to Sun 31 May'}
   ],
   ladder: [
-    {pos:1, team:'Penrith Panthers',           p:8, w:8, d:0, l:1, b:1, pf:274, pa:112, pts:16, form:['w','w','w','l','w','w','w','w','w']},
-    {pos:2, team:'New Zealand Warriors',        p:8, w:7, d:0, l:2, b:0, pf:236, pa:158, pts:14, form:['w','l','w','l','w','w','w','w']},
-    {pos:3, team:'Sydney Roosters',             p:8, w:6, d:0, l:2, b:0, pf:212, pa:160, pts:12, form:['l','l','w','w','w','l','w','w']},
-    {pos:4, team:'Canberra Raiders',            p:8, w:5, d:0, l:3, b:0, pf:184, pa:170, pts:10, form:['w','l','w','l','l','w','l','w']},
-    {pos:5, team:'North Queensland Cowboys',    p:8, w:5, d:0, l:3, b:1, pf:198, pa:172, pts:10, form:['l','w','l','l','l','w','w','w']},
-    {pos:6, team:'Cronulla Sharks',             p:8, w:5, d:0, l:3, b:1, pf:210, pa:156, pts:10, form:['w','l','w','b','l','l','w','w']},
-    {pos:7, team:'Newcastle Knights',           p:8, w:4, d:0, l:4, b:0, pf:192, pa:224, pts:8,  form:['w','w','l','l','l','l','w','w']},
-    {pos:8, team:'South Sydney Rabbitohs',      p:7, w:4, d:0, l:3, b:1, pf:178, pa:164, pts:8,  form:['b','w','w','w','l','w','l']},
-    {pos:9, team:'Wests Tigers',                p:8, w:5, d:0, l:3, b:1, pf:206, pa:180, pts:8,  form:['w','l','w','w','w','w','b','l']},
-    {pos:10,team:'Manly Sea Eagles',            p:8, w:4, d:0, l:4, b:0, pf:188, pa:192, pts:8,  form:['l','l','l','w','w','w','w','l']},
-    {pos:11,team:'Brisbane Broncos',            p:7, w:3, d:0, l:4, b:1, pf:158, pa:186, pts:8,  form:['l','w','b','w','l','w','l']},
-    {pos:12,team:'Dolphins',                    p:8, w:3, d:0, l:5, b:0, pf:158, pa:194, pts:6,  form:['w','l','l','l','l','l','w','l']},
-    {pos:13,team:'Canterbury Bulldogs',         p:8, w:3, d:0, l:5, b:0, pf:166, pa:206, pts:6,  form:['w','w','l','w','l','l','l','l']},
-    {pos:14,team:'Gold Coast Titans',           p:8, w:2, d:0, l:6, b:1, pf:152, pa:218, pts:6,  form:['l','l','b','l','l','w','w','l']},
-    {pos:15,team:'Parramatta Eels',             p:8, w:2, d:0, l:6, b:0, pf:162, pa:248, pts:4,  form:['l','l','l','l','l','w','w','l']},
-    {pos:16,team:'St George Illawarra Dragons', p:8, w:2, d:0, l:6, b:0, pf:136, pa:196, pts:4,  form:['l','l','l','l','w','l','w','b']},
-    {pos:17,team:'Melbourne Storm',             p:8, w:1, d:0, l:7, b:0, pf:132, pa:238, pts:2,  form:['w','l','l','l','l','l','l','l']},
+    {pos:1,  team:'Penrith Panthers',            p:12,w:10,d:0,l:2, b:1,pf:380,pa:198,pts:20,form:['w','w','l','w','w']},
+    {pos:2,  team:'Sydney Roosters',             p:12,w:9, d:0,l:3, b:0,pf:354,pa:220,pts:18,form:['w','w','w','l','w']},
+    {pos:3,  team:'New Zealand Warriors',        p:11,w:8, d:0,l:3, b:1,pf:316,pa:228,pts:16,form:['w','l','w','w','b']},
+    {pos:4,  team:'North Queensland Cowboys',    p:12,w:7, d:0,l:5, b:1,pf:310,pa:270,pts:14,form:['w','l','w','l','w']},
+    {pos:5,  team:'Wests Tigers',                p:11,w:7, d:0,l:4, b:1,pf:306,pa:264,pts:14,form:['w','w','b','l','w']},
+    {pos:6,  team:'Cronulla Sharks',             p:11,w:6, d:0,l:5, b:1,pf:286,pa:258,pts:12,form:['w','w','l','w','b']},
+    {pos:7,  team:'Canberra Raiders',            p:12,w:6, d:0,l:6, b:0,pf:270,pa:280,pts:12,form:['l','w','w','l','w']},
+    {pos:8,  team:'Brisbane Broncos',            p:11,w:6, d:0,l:5, b:1,pf:274,pa:268,pts:12,form:['l','w','b','w','l']},
+    {pos:9,  team:'South Sydney Rabbitohs',      p:11,w:5, d:0,l:6, b:1,pf:258,pa:274,pts:10,form:['l','l','b','w','w']},
+    {pos:10, team:'Newcastle Knights',           p:12,w:5, d:0,l:7, b:0,pf:268,pa:310,pts:10,form:['l','w','l','w','l']},
+    {pos:11, team:'Manly Sea Eagles',            p:12,w:5, d:0,l:7, b:0,pf:256,pa:294,pts:10,form:['w','l','l','w','l']},
+    {pos:12, team:'Gold Coast Titans',           p:11,w:4, d:0,l:7, b:1,pf:240,pa:308,pts:8, form:['b','l','l','w','l']},
+    {pos:13, team:'Canterbury Bulldogs',         p:12,w:4, d:0,l:8, b:0,pf:234,pa:316,pts:8, form:['l','l','w','l','l']},
+    {pos:14, team:'St George Illawarra Dragons', p:11,w:3, d:0,l:8, b:1,pf:210,pa:318,pts:6, form:['b','l','l','l','w']},
+    {pos:15, team:'Parramatta Eels',             p:12,w:3, d:0,l:9, b:0,pf:222,pa:354,pts:6, form:['l','w','l','l','l']},
+    {pos:16, team:'Dolphins',                    p:12,w:3, d:0,l:9, b:0,pf:216,pa:342,pts:6, form:['l','l','w','l','l']},
+    {pos:17, team:'Melbourne Storm',             p:12,w:2, d:0,l:10,b:0,pf:204,pa:360,pts:4, form:['l','l','l','w','l']},
   ],
   nextRound: {
-    round: 10,
+    round: 13,
     fixtures: [
-      {date:'Thu 7 May', time:'7:50pm AEST', home:'Dolphins', homeRecord:'3-5', homePts:6, away:'Canterbury Bulldogs', awayRecord:'3-5', awayPts:6, venue:'Suncorp Stadium, Brisbane',
-        prediction:{winner:'Dolphins', score:'22–18', confidence:55, notes:'Both sides are on equal points in a genuine toss-up. Dolphins welcome back Kodi Nikorima (suspension) and Jeremy Marshall-King (knee) off the bench. Bulldogs missing Kurt Mann (head knock) and Jake Turpin (biceps). Dolphins home ground advantage tips this narrowly.',
-        newsPoints:['Dolphins: Kodi Nikorima returns from suspension — experienced bench option','Dolphins: Jeremy Marshall-King making first appearance after January knee injury','Bulldogs: Kurt Mann (head knock) & Jake Turpin (biceps) both OUT','Bulldogs: Viliame Kikau still unavailable — pectoral injury (expected Round 20)','Both teams equal on ladder (3-5) and points — coin-flip game']}},
-      {date:'Fri 8 May', time:'6:00pm AEST', home:'Sydney Roosters', homeRecord:'6-2', homePts:12, away:'Gold Coast Titans', awayRecord:'2-6', awayPts:6, venue:'Polytec Stadium, Gosford',
-        prediction:{winner:'Sydney Roosters', score:'32–10', confidence:84, notes:'Roosters on a 5-game winning streak with Tedesco, Tupou, Cherry-Evans and Walker all firing. Titans make two NRL debuts (Zane Harrison halfback, Jensen Taumoepeau wing). Roosters missing Nawaqanitawase (ankle) and Collins (concussion) but depth covers it easily.',
-        newsPoints:['Roosters: Mark Nawaqanitawase OUT (ankle) — Cody Ramsey starts on wing','Roosters: Lindsay Collins OUT (concussion) — Spencer Leniu into starting side','Roosters: Angus Crichton named despite medial ligament injury — monitored','Titans: NRL debut for halfback Zane Harrison + winger Jensen Taumoepeau','Titans: Jayden Campbell shifted from halfback to five-eighth']}},
-      {date:'Fri 8 May', time:'8:00pm AEST', home:'North Queensland Cowboys', homeRecord:'5-3', homePts:10, away:'Parramatta Eels', awayRecord:'2-6', awayPts:4, venue:'Qld Country Bank Stadium, Townsville',
-        prediction:{winner:'North Queensland Cowboys', score:'28–14', confidence:78, notes:'Cowboys at home in Townsville on a 3-game winning run. Eels are the worst defensive side in the competition at 35 points conceded per game. Jeremiah Nanai (shoulder) is uncertain but Dearden and Drinkwater in superb form.',
-        newsPoints:['Cowboys: Jeremiah Nanai (shoulder, Round 9) — game-day decision','Eels: Worst defence in NRL — averaging 35 pts conceded per game','Eels: Dylan Walker returns from arm injury to interchange bench','Cowboys: Reed Mahoney in excellent form — 2 try assists in Round 9 win']}},
-      {date:'Sun 9 May', time:'2:00pm AEST', home:'St George Illawarra Dragons', homeRecord:'2-6', homePts:4, away:'Newcastle Knights', awayRecord:'4-4', awayPts:8, venue:'Jubilee Stadium, Kogarah',
-        prediction:{winner:'Newcastle Knights', score:'24–18', confidence:60, notes:'Knights are in form with 2 straight wins including the stunning Souths thriller. Kalyn Ponga back and brilliant — 109m, 5 tackle breaks, 1 try assist in Round 9. But Jubilee Stadium is historically a trap game for away sides and Dragons are desperate.',
-        newsPoints:['Knights: Kalyn Ponga back from concussion — dominant performance in Round 9','Knights: Greg Marzhew hat-trick in Round 9 — right edge in excellent form','Dragons: Jubilee (Kogarah) historically strong fortress for home upsets','Dragons: Jacob Liddle (ACL) and Zac Lomax (shoulder) both still unavailable','Knights won last 3 vs Dragons — but all at McDonald Jones Stadium']}},
-      {date:'Sun 9 May', time:'4:05pm AEST', home:'South Sydney Rabbitohs', homeRecord:'4-3', homePts:8, away:'Cronulla Sharks', awayRecord:'5-3', awayPts:10, venue:'Accor Stadium, Sydney',
-        prediction:{winner:'South Sydney Rabbitohs', score:'24–22', confidence:54, notes:'One of the hardest calls of the round. Sharks demolished Tigers 52–10 with Nicho Hynes unstoppable and KL Iro + Teig Wilton both hat-tricks. Rabbitohs lost a heartbreaker to Knights but Latrell Mitchell is on fire (66 pts in 4 games). Accor Stadium is a fortress but Sharks have won the last 3 meetings there. Could genuinely go either way.',
-        newsPoints:['Sharks: KL Iro & Teig Wilton both scored hat-tricks vs Tigers (Round 9)','Sharks: Nicho Hynes: try + 8/9 conversions — in best form of career','Rabbitohs: Latrell Mitchell scored 66 competition points in his last 4 games','Rabbitohs: Brandon Smith (calf) remains doubtful — hooker depth tested','Accor Stadium: Souths won 8 of last 10 home games — genuine fortress','BUT: Sharks won last 3 meetings at Accor — recent trend favours Cronulla']}},
-      {date:'Sun 9 May', time:'6:10pm AEST', home:'Manly Sea Eagles', homeRecord:'4-4', homePts:8, away:'Brisbane Broncos', awayRecord:'3-4', awayPts:8, venue:'4 Pines Park, Brookvale',
-        prediction:{winner:'Manly Sea Eagles', score:'26–20', confidence:57, notes:'Manly at Brookvale is one of the toughest away trips in rugby league. Sea Eagles lost narrowly to Panthers 18-16. Broncos are significantly weakened with Adam Reynolds OUT (head knock) and Tom Duffy playing halfback. Kotoni Staggs also suspended. Jamal Fogarty returns from groin for Manly.',
-        newsPoints:['Broncos: Adam Reynolds OUT (head knock) — Tom Duffy starts at halfback','Broncos: Kotoni Staggs suspended — Jesse Arthars fills in at centre','Broncos: Deine Mariner OUT (leg) — Antonio Verhoeven called up on wing','Sea Eagles: Jamal Fogarty returns from groin injury to start at halfback','4 Pines Park: Manly have won 9 of last 12 home games — genuine fortress','Ben Hunt (Broncos) named in reserves chasing early return from knee injury']}},
-      {date:'Sun 10 May', time:'4:00pm AEST', home:'Melbourne Storm', homeRecord:'1-7', homePts:2, away:'Wests Tigers', awayRecord:'5-3', awayPts:8, venue:'AAMI Park, Melbourne',
-        prediction:{winner:'Wests Tigers', score:'26–16', confidence:67, notes:'Storm have lost 7 of 8 games — an unwanted club record — but Jahrome Hughes returns from concussion in a huge boost. Tigers were embarrassed 52-10 by Sharks and will be desperate to respond. Wests have the better squad despite that loss.',
-        newsPoints:['Storm: Jahrome Hughes RETURNS from concussion — biggest positive in weeks','Storm: 7 consecutive losses equals worst run in club history','Storm: Hugo Peel made NRL debut in Round 9 — now set for second game','Tigers: Api Koroisau serving suspension — Tristan Hope hooking again','Tigers: Adam Doueihi (injury) uncertain — halves combination under scrutiny','AAMI Park: Storm have lost last 5 home games — no longer a fortress']}},
-      {date:'Sun 10 May', time:'6:05pm AEST', home:'Canberra Raiders', homeRecord:'5-3', homePts:10, away:'Penrith Panthers', awayRecord:'8-1', awayPts:16, venue:'GIO Stadium, Canberra',
-        prediction:{winner:'Penrith Panthers', score:'20–16', confidence:65, notes:'Panthers are the benchmark but Raiders are playing their best footy in years. Timoko had a monster 326m game in Round 9. GIO Stadium is electric at night and Raiders have won the last 3 home games against Penrith. Still expect Panthers to edge it but far from certain.',
-        newsPoints:['Raiders: Matt Timoko 326m + 124 post-contact metres vs Titans in Round 9','Raiders: Still missing Papalii, Ethan Strange, Hudson Young, Xavier Savage','Raiders: Ethan Sanders (halfback) — outstanding young talent, 2 try assists R9','Panthers: Nathan Cleary & Dylan Edwards both in career-best form in 2026','Panthers: 8-1 record — best start since back-to-back premiership era','GIO Stadium: Raiders won last 3 home games vs Panthers — dangerous venue']}},
+      {date:'Fri 29 May', time:'8:00pm AEST', home:'Cronulla Sharks',           homeRecord:'6-5', homePts:12, away:'Manly Sea Eagles',            awayRecord:'5-7', awayPts:10, venue:'Ocean Protect Stadium, Cronulla',    prediction:{winner:'Cronulla Sharks',           score:'24-16', confidence:63, notes:'Sharks at home should handle Sea Eagles who have been inconsistent. Nicho Hynes in good form. Manly missing key players.',                                                  keyFactors:['Sharks strong at home at Ocean Protect','Manly inconsistent form in 2026','Nicho Hynes driving Sharks attack']}},
+      {date:'Sat 30 May', time:'3:00pm AEST', home:'Newcastle Knights',         homeRecord:'5-7', homePts:10, away:'Parramatta Eels',              awayRecord:'3-9', awayPts:6,  venue:'McDonald Jones Stadium, Newcastle', prediction:{winner:'Newcastle Knights',         score:'28-16', confidence:70, notes:'Knights at home against a struggling Eels side. Ponga in excellent form. Eels worst defensive record in the competition.',                                          keyFactors:['Eels worst defence in NRL','Ponga outstanding in 2026','Knights strong home record at McDonald Jones']}},
+      {date:'Sat 30 May', time:'5:30pm AEST', home:'Wests Tigers',              homeRecord:'7-4', homePts:14, away:'Canterbury Bulldogs',          awayRecord:'4-8', awayPts:8,  venue:'CommBank Stadium, Parramatta',      prediction:{winner:'Wests Tigers',              score:'26-14', confidence:68, notes:'Tigers in strong form and should account for a Bulldogs side missing Kikau. Luai and Doueihi clicking well together.',                                              keyFactors:['Tigers 5th on ladder with strong form','Bulldogs missing Viliame Kikau (pectoral)','Luai and Doueihi combination firing']}},
+      {date:'Sat 30 May', time:'7:30pm AEST', home:'Melbourne Storm',           homeRecord:'2-10',homePts:4,  away:'Sydney Roosters',              awayRecord:'9-3', awayPts:18, venue:'AAMI Park, Melbourne',              prediction:{winner:'Sydney Roosters',           score:'30-18', confidence:74, notes:'Roosters in great form and Storm are struggling all season. Tedesco and Cherry-Evans too class for Storm despite Hughes return.',                                       keyFactors:['Storm 17th on ladder with 10 losses','Roosters on strong winning run','Tedesco playing near career best football']}},
+      {date:'Sun 31 May', time:'2:00pm AEST', home:'Brisbane Broncos',          homeRecord:'6-5', homePts:12, away:'St George Illawarra Dragons',  awayRecord:'3-8', awayPts:6,  venue:'Suncorp Stadium, Brisbane',         prediction:{winner:'Brisbane Broncos',          score:'30-14', confidence:72, notes:'Broncos at Suncorp are powerful at home. Dragons still rebuilding and short on wins. Reynolds back adds class to Broncos attack.',                                    keyFactors:['Broncos strong at Suncorp Stadium','Dragons 14th and struggling for wins','Reynolds return key for Broncos']}},
+      {date:'Sun 31 May', time:'4:05pm AEST', home:'Canberra Raiders',          homeRecord:'6-6', homePts:12, away:'North Queensland Cowboys',     awayRecord:'7-5', awayPts:14, venue:'GIO Stadium, Canberra',             prediction:{winner:'North Queensland Cowboys',  score:'22-20', confidence:55, notes:'Very tight game between two evenly matched sides. Cowboys in better form but Raiders at GIO are dangerous. Toss-up game.',                                        keyFactors:['Cowboys 4th on ladder in good form','Raiders dangerous at home GIO Stadium','Last 3 meetings extremely close finishes']}},
+      {date:'Sun 31 May', time:'6:15pm AEST', home:'Penrith Panthers',          homeRecord:'10-2',homePts:20, away:'New Zealand Warriors',          awayRecord:'8-3', awayPts:16, venue:'CommBank Stadium, Penrith',         prediction:{winner:'Penrith Panthers',          score:'24-18', confidence:65, notes:'Top of table clash. Panthers at home are the benchmark but Warriors are the competition form team. Cleary vs Boyd halves battle is the key contest.',                keyFactors:['Panthers unbeaten at home CommBank','Warriors 7 wins from 11 - genuine top 4 side','Cleary vs Tanah Boyd key halves matchup']}},
     ]
   },
   lastRound: {
-    round: 9,
+    round: 12,
     results: [
-      {home:'Canterbury Bulldogs',        homeScore:12, away:'North Queensland Cowboys', awayScore:28, venue:'Accor Stadium · Thu 1 May'},
-      {home:'Dolphins',                   homeScore:28, away:'Melbourne Storm',          awayScore:10, venue:'Kayo Stadium · Thu 1 May'},
-      {home:'Gold Coast Titans',          homeScore:18, away:'Canberra Raiders',         awayScore:34, venue:'Cbus Super Stadium · Sat 2 May'},
-      {home:'Parramatta Eels',            homeScore:18, away:'New Zealand Warriors',     awayScore:36, venue:'CommBank Stadium · Sat 2 May'},
-      {home:'Sydney Roosters',            homeScore:38, away:'Brisbane Broncos',         awayScore:24, venue:'Allianz Stadium · Sat 2 May'},
-      {home:'Newcastle Knights',          homeScore:40, away:'South Sydney Rabbitohs',   awayScore:38, venue:'McDonald Jones Stadium · Sun 3 May'},
-      {home:'Cronulla Sharks',            homeScore:52, away:'Wests Tigers',             awayScore:10, venue:'Ocean Protect Stadium · Sun 3 May'},
-      {home:'Penrith Panthers',           homeScore:18, away:'Manly Sea Eagles',         awayScore:16, venue:'CommBank Stadium · Sun 3 May'},
+      {home:'Canberra Raiders',            homeScore:18, away:'Dolphins',                   awayScore:16, venue:'GIO Stadium · Thu 21 May'},
+      {home:'Canterbury Bulldogs',         homeScore:14, away:'Melbourne Storm',            awayScore:22, venue:'Accor Stadium · Fri 22 May'},
+      {home:'St George Illawarra Dragons', homeScore:12, away:'New Zealand Warriors',       awayScore:30, venue:'Jubilee Stadium · Sat 23 May'},
+      {home:'Manly Sea Eagles',            homeScore:20, away:'Gold Coast Titans',          awayScore:18, venue:'4 Pines Park · Sat 23 May'},
+      {home:'North Queensland Cowboys',    homeScore:28, away:'South Sydney Rabbitohs',     awayScore:22, venue:'Qld Country Bank Stadium · Sun 24 May'},
     ]
   }
 };
