@@ -3,688 +3,348 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NRL 2026 — Live Hub</title>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<title>NRL 2026 Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root{--bg:#0a0c10;--surface:#111318;--surface2:#181c24;--border:rgba(255,255,255,0.07);--accent:#e8ff00;--accent2:#00d4ff;--text:#f0f2f7;--muted:#7a8090;--top8:rgba(232,255,0,0.07);--win:#22c55e;--loss:#ef4444;--draw:#f59e0b;}
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.5;min-height:100vh;}
+:root{--bg:#0a0c10;--s:#111318;--s2:#181c24;--b:rgba(255,255,255,0.07);--acc:#e8ff00;--acc2:#00d4ff;--t:#f0f2f7;--m:#7a8090;--win:#22c55e;--loss:#ef4444;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;font-size:14px;}
+header{background:var(--s);border-bottom:1px solid var(--b);padding:0 20px;display:flex;align-items:center;gap:16px;height:52px;position:sticky;top:0;z-index:10;}
+.logo{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--acc);text-transform:uppercase;letter-spacing:.04em;}
+.logo span{color:var(--t);}
+nav{display:flex;gap:4px;flex:1;}
+nav button{background:none;border:none;cursor:pointer;color:var(--m);font-size:13px;font-weight:500;padding:7px 12px;border-radius:6px;transition:.15s;}
+nav button:hover{background:var(--s2);color:var(--t);}
+nav button.on{background:var(--acc);color:#000;font-weight:600;}
+.badge{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);background:var(--s2);padding:3px 9px;border-radius:20px;white-space:nowrap;}
+main{max-width:1080px;margin:0 auto;padding:24px 16px;}
+.tab{display:none;}.tab.on{display:block;}
+h1{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:900;text-transform:uppercase;margin-bottom:20px;}
+h1 em{color:var(--acc);font-style:normal;}
 
-  /* LOADING SCREEN */
-  #loading-screen{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .5s;}
-  #loading-screen.fade{opacity:0;pointer-events:none;}
-  .loader-logo{font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:900;color:var(--accent);letter-spacing:.06em;}
-  .loader-logo span{color:var(--text);}
-  .loader-bar{width:260px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
-  .loader-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .5s ease;}
-  .loader-msg{font-size:13px;color:var(--muted);text-align:center;max-width:340px;line-height:1.6;}
+/* LADDER */
+.ladder-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);padding:8px 10px;text-align:center;border-bottom:1px solid var(--b);}
+th:nth-child(1),th:nth-child(2){text-align:left;}
+tr{border-bottom:1px solid var(--b);}
+tr:hover{background:var(--s2);}
+tr.t8{background:rgba(232,255,0,.05);}
+tr.t8:hover{background:rgba(232,255,0,.1);}
+td{padding:9px 10px;text-align:center;}
+td:nth-child(1){text-align:left;width:32px;}
+td:nth-child(2){text-align:left;min-width:150px;}
+.pos{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:900;color:var(--m);}
+.pos.p1{color:var(--acc);}
+.pos.p4{color:var(--acc2);}
+.pos.p8{color:var(--t);}
+.tname{display:flex;align-items:center;gap:7px;font-weight:500;}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.pts{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--acc);}
+.dp{color:var(--win);}
+.dn{color:var(--loss);}
+.form{display:flex;gap:3px;justify-content:center;}
+.f{width:7px;height:7px;border-radius:50%;}
+.f.w{background:var(--win);}
+.f.l{background:var(--loss);}
+.f.b{background:var(--m);opacity:.4;}
+.fin{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;background:var(--acc);color:#000;padding:1px 5px;border-radius:3px;letter-spacing:.05em;}
+.div td{padding:3px 0;}
+.divl{height:2px;background:rgba(232,255,0,.25);border-radius:2px;}
 
-  /* HEADER */
-  header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:20px;height:56px;}
-  .logo{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;letter-spacing:.04em;color:var(--accent);text-transform:uppercase;white-space:nowrap;}
-  .logo span{color:var(--text);}
-  nav{display:flex;gap:4px;flex:1;}
-  nav button{background:none;border:none;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:8px 14px;border-radius:6px;transition:all .15s;}
-  nav button:hover{background:var(--surface2);color:var(--text);}
-  nav button.active{background:var(--accent);color:#0a0c10;font-weight:600;}
-  .round-badge{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--surface2);padding:4px 10px;border-radius:20px;white-space:nowrap;}
+/* CARDS */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;}
+.card{background:var(--s);border:1px solid var(--b);border-radius:10px;overflow:hidden;}
+.card:hover{border-color:rgba(255,255,255,.14);}
+.card-head{background:var(--s2);padding:7px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b);}
+.card-date{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--m);}
+.card-venue{font-size:10px;color:var(--m);text-align:right;max-width:130px;line-height:1.3;}
+.card-body{padding:14px 12px;}
+.kickoff{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--acc);font-weight:700;text-align:center;margin-bottom:10px;}
+.matchup{display:flex;align-items:center;gap:6px;margin-bottom:12px;}
+.team{flex:1;}
+.team.away{text-align:right;}
+.team .tn{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;line-height:1.1;}
+.team .tn.win{color:var(--acc);}
+.team .tn.lose{color:var(--m);}
+.team .rec{font-size:10px;color:var(--m);margin-top:1px;}
+.vs{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;color:var(--m);background:var(--s2);padding:5px 8px;border-radius:5px;}
+.pred{background:var(--s2);border-radius:7px;padding:10px;}
+.pred-lbl{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);margin-bottom:6px;}
+.pred-w{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;color:var(--acc);margin-bottom:4px;}
+.pred-sc{font-size:11px;color:var(--m);margin-bottom:6px;}
+.cbar{height:3px;background:var(--b);border-radius:2px;overflow:hidden;margin-bottom:4px;}
+.cfill{height:100%;border-radius:2px;background:var(--acc);}
+.cfill.med{background:var(--acc2);}
+.cfill.low{background:var(--m);}
+.pred-n{font-size:11px;color:var(--m);line-height:1.5;}
+.tossup{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:rgba(239,68,68,.15);color:var(--loss);border:1px solid rgba(239,68,68,.25);padding:1px 6px;border-radius:3px;margin-bottom:5px;}
+.factors{margin-top:7px;padding-top:7px;border-top:1px solid var(--b);}
+.flbl{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);margin-bottom:4px;}
+.fi{font-size:10px;color:var(--m);line-height:1.5;display:flex;gap:5px;}
+.fi::before{content:'▸';color:var(--acc2);flex-shrink:0;}
 
-  /* MAIN */
-  main{max-width:1100px;margin:0 auto;padding:28px 24px;}
-  .section{display:none;}
-  .section.active{display:block;}
-  .page-hdr{margin-bottom:24px;display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:8px;}
-  .page-hdr h1{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;letter-spacing:.02em;text-transform:uppercase;}
-  .page-hdr h1 span{color:var(--accent);}
-  .page-hdr p{color:var(--muted);font-size:13px;}
+/* MARGIN PANEL */
+.mpanel{background:var(--s);border:1px solid var(--b);border-radius:9px;padding:14px;margin-bottom:18px;}
+.mpanel-title{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);margin-bottom:10px;}
+.mrow{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;}
+.mteam{flex:0 0 110px;color:var(--t);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mbar{flex:1;height:5px;background:var(--b);border-radius:3px;overflow:hidden;}
+.mfill{height:100%;background:var(--acc);border-radius:3px;}
+.mval{flex:0 0 36px;text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--acc);}
+.mtotal{margin-top:8px;padding-top:8px;border-top:1px solid var(--b);display:flex;justify-content:space-between;font-size:11px;color:var(--m);}
+.mtotal strong{color:var(--acc);font-family:'Barlow Condensed',sans-serif;font-size:14px;}
 
-  /* STATUS */
-  .status-bar{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 14px;margin-bottom:20px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
-  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--win);flex-shrink:0;animation:pulse 1.8s infinite;}
-  .live-dot.loading{background:var(--accent);animation:pulse .8s infinite;}
-  .live-dot.error{background:var(--loss);animation:none;}
-  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
-  .cache-tag{margin-left:auto;font-size:11px;color:var(--muted);background:var(--surface);padding:3px 8px;border-radius:4px;white-space:nowrap;}
-  .refresh-btn{background:none;border:1px solid var(--border);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:11px;padding:3px 9px;border-radius:5px;cursor:pointer;transition:all .15s;}
-  .refresh-btn:hover{border-color:var(--accent);color:var(--accent);}
+/* RESULTS */
+.rrow{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--s);border:1px solid var(--b);border-radius:7px;margin-bottom:7px;font-size:13px;}
+.rrow .rscore{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--acc);min-width:60px;text-align:center;flex-shrink:0;}
+.rrow .rven{font-size:10px;color:var(--m);margin-left:auto;text-align:right;}
 
-  /* INFO CARDS */
-  .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:28px;}
-  .info-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
-  .info-card .label{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
-  .info-card .value{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--accent);}
-  .info-card .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+/* INFO CARDS */
+.igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:22px;}
+.ic{background:var(--s);border:1px solid var(--b);border-radius:9px;padding:12px 14px;}
+.ic .il{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);margin-bottom:4px;}
+.ic .iv{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--acc);}
+.ic .is{font-size:11px;color:var(--m);margin-top:1px;}
 
-  /* LADDER */
-  .ladder-wrap{overflow-x:auto;}
-  table.ladder{width:100%;border-collapse:collapse;font-size:13px;}
-  table.ladder thead th{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:10px 12px;text-align:center;border-bottom:1px solid var(--border);white-space:nowrap;}
-  table.ladder thead th:first-child,table.ladder thead th:nth-child(2){text-align:left;}
-  table.ladder tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
-  table.ladder tbody tr:hover{background:var(--surface2);}
-  table.ladder tbody tr.top8{background:var(--top8);}
-  table.ladder tbody tr.top8:hover{background:rgba(232,255,0,.12);}
-  table.ladder td{padding:10px 12px;text-align:center;}
-  table.ladder td:first-child{text-align:left;width:36px;}
-  table.ladder td:nth-child(2){text-align:left;min-width:160px;}
-  .pos-num{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:900;color:var(--muted);}
-  .pos-num.p1{color:var(--accent);}
-  .pos-num.p4{color:var(--accent2);}
-  .pos-num.p8{color:var(--text);}
-  .team-name{font-weight:500;color:var(--text);display:flex;align-items:center;gap:8px;}
-  .team-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-  .pts-cell{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--accent);}
-  .diff-pos{color:var(--win);}
-  .diff-neg{color:var(--loss);}
-  .form-dots{display:flex;gap:3px;justify-content:center;}
-  .fd{width:8px;height:8px;border-radius:50%;}
-  .fd.w{background:var(--win);}
-  .fd.l{background:var(--loss);}
-  .fd.d{background:var(--draw);}
-  .fd.b{background:var(--muted);opacity:.4;}
-  .divider-row td{padding:4px 0;}
-  .divider-inner{height:2px;background:rgba(232,255,0,.3);border-radius:2px;}
-  .badge-finals{font-family:'Barlow Condensed',sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:#0a0c10;padding:2px 6px;border-radius:3px;}
+.sdiv{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);display:flex;align-items:center;gap:10px;margin:22px 0 12px;}
+.sdiv::after{content:'';flex:1;height:1px;background:var(--b);}
 
-  /* FIXTURE CARDS */
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
-  .fixture-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .15s;}
-  .fixture-card:hover{border-color:rgba(255,255,255,.15);}
-  .fixture-header{background:var(--surface2);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);}
-  .fixture-date{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
-  .fixture-venue{font-size:11px;color:var(--muted);text-align:right;}
-  .fixture-body{padding:16px 14px;}
-  .matchup{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;}
-  .team-side{flex:1;}
-  .team-side.away{text-align:right;}
-  .team-side .name{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;text-transform:uppercase;color:var(--text);line-height:1.1;}
-  .team-side .record{font-size:11px;color:var(--muted);margin-top:2px;}
-  .vs-box{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--muted);background:var(--surface2);padding:6px 10px;border-radius:6px;white-space:nowrap;}
-  .kick-time{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--accent);font-weight:600;text-align:center;margin-bottom:12px;}
-  .pred-box{background:var(--surface2);border-radius:8px;padding:12px;}
-  .pred-label{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
-  .pred-winner{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
-  .pred-score{font-size:12px;color:var(--muted);margin-bottom:8px;}
-  .confidence-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:4px;}
-  .confidence-fill{height:100%;background:var(--accent);border-radius:2px;}
-  .confidence-fill.med{background:var(--accent2);}
-  .confidence-fill.low{background:var(--muted);}
-  .pred-notes{font-size:11px;color:var(--muted);line-height:1.5;}
+footer{text-align:center;padding:28px 16px;font-size:11px;color:var(--m);border-top:1px solid var(--b);margin-top:40px;}
+footer a{color:var(--acc2);text-decoration:none;}
 
-  /* MARGIN SUMMARY */
-  .margin-summary{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:20px;}
-  .margin-summary-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
-  .margin-rows{}
-  .margin-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:12px;}
-  .margin-row:last-child{margin-bottom:0;}
-  .margin-team{flex:0 0 140px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .margin-bar-wrap{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
-  .margin-bar-fill{height:100%;border-radius:3px;background:var(--accent);}
-  .margin-val{flex:0 0 44px;text-align:right;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:var(--accent);}
-  .margin-total{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;}
-  .margin-total strong{color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-size:15px;}
-
-  /* TOSS-UP BADGE & NEWS */
-  .tossup-badge{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:rgba(239,68,68,.15);color:var(--loss);border:1px solid rgba(239,68,68,.3);padding:2px 8px;border-radius:4px;margin-bottom:8px;}
-  .news-bullets{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
-  .news-bullets-label{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
-  .news-bullet{display:flex;gap:6px;font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:3px;}
-  .news-bullet::before{content:'▸';color:var(--accent2);flex-shrink:0;}
-
-  /* RESULTS */
-  .result-row{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;font-size:13px;gap:8px;}
-  .result-row .rscore{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--accent);min-width:70px;text-align:center;flex-shrink:0;}
-  .result-row .rvenue{font-size:11px;color:var(--muted);min-width:100px;text-align:right;flex-shrink:0;}
-
-  .section-divider{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:12px;margin:28px 0 16px;}
-  .section-divider::after{content:'';flex:1;height:1px;background:var(--border);}
-
-  footer{text-align:center;padding:32px 24px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);margin-top:48px;}
-  footer a{color:var(--accent2);text-decoration:none;}
-
-  @media(max-width:640px){
-    header{gap:10px;padding:0 12px;}
-    main{padding:20px 12px;}
-    .cards{grid-template-columns:1fr;}
-    nav button{padding:6px 8px;font-size:12px;}
-    .result-row .rvenue{display:none;}
-  }
+@media(max-width:600px){
+  .cards{grid-template-columns:1fr;}
+  th.hide,td.hide{display:none;}
+  nav button{padding:6px 8px;font-size:12px;}
+}
 </style>
 </head>
 <body>
-
-<!-- LOADING SCREEN -->
-<div id="loading-screen">
-  <div class="loader-logo">NRL <span>2026</span></div>
-  <div class="loader-bar"><div class="loader-fill" id="loader-fill"></div></div>
-  <div class="loader-msg" id="loader-msg">Starting up…</div>
-</div>
-
 <header>
   <div class="logo">NRL <span>2026</span></div>
   <nav>
-    <button class="active" onclick="showTab('ladder',this)">Ladder</button>
-    <button onclick="showTab('next-round',this)">Next Round</button>
-    <button onclick="showTab('last-round',this)">Last Round</button>
+    <button class="on" onclick="tab('ladder',this)">Ladder</button>
+    <button onclick="tab('next',this)">Round 14</button>
+    <button onclick="tab('last',this)">Round 13</button>
   </nav>
-  <div class="round-badge" id="round-badge">Loading…</div>
+  <div class="badge">After Round 13</div>
 </header>
-
 <main>
-  <!-- LADDER -->
-  <section id="ladder" class="section active">
-    <div class="status-bar">
-      <div class="live-dot" id="status-dot"></div>
-      <span id="status-text">Loading…</span>
-      <button class="refresh-btn" onclick="forceRefresh()">Force refresh</button>
-      <span class="cache-tag" id="cache-tag"></span>
-    </div>
-    <div class="info-grid" id="summary-cards"></div>
-    <div class="page-hdr">
-      <h1>2026 <span>Ladder</span></h1>
-      <p>Top 8 qualify for finals · Byes worth 2 pts</p>
-    </div>
-    <div class="ladder-wrap">
-      <table class="ladder">
-        <thead>
-          <tr>
-            <th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>B</th>
-            <th>PF</th><th>PA</th><th>Diff</th><th>Pts</th><th>Form</th>
-          </tr>
-        </thead>
-        <tbody id="ladder-body"></tbody>
-      </table>
-    </div>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);display:flex;gap:20px;flex-wrap:wrap;">
-      <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:var(--top8);border:1px solid rgba(232,255,0,.2);border-radius:2px;"></span>Top 8 – Finals</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span class="fd w" style="display:inline-block;"></span>Win</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span class="fd l" style="display:inline-block;"></span>Loss</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span class="fd b" style="display:inline-block;"></span>Bye</span>
-    </div>
-  </section>
 
-  <!-- NEXT ROUND -->
-  <section id="next-round" class="section">
-    <div class="page-hdr">
-      <h1>Next <span>Round</span></h1>
-      <p id="next-round-sub">Fixtures &amp; predictions</p>
-    </div>
-    <div id="margin-summary-panel"></div>
-    <div class="cards" id="next-round-cards"></div>
-    <div class="section-divider">How predictions work</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;font-size:13px;color:var(--muted);line-height:1.7;">
-      Predictions weigh: <strong style="color:var(--text);">current ladder &amp; points diff</strong> (30%), <strong style="color:var(--text);">last 5 games form</strong> (25%), <strong style="color:var(--text);">head-to-head</strong> (15%), <strong style="color:var(--text);">home advantage</strong> (10%), <strong style="color:var(--text);">injuries &amp; team news</strong> (20%).
-      Confidence: <span style="color:var(--accent);">High ≥70%</span> · <span style="color:var(--accent2);">Medium 50–69%</span> · <span style="color:var(--muted);">Low &lt;50%</span>
-    </div>
-  </section>
+<!-- LADDER -->
+<div id="ladder" class="tab on">
+  <div class="igrid">
+    <div class="ic"><div class="il">Leaders</div><div class="iv">Panthers</div><div class="is">10W-1L · 22pts · 1st</div></div>
+    <div class="ic"><div class="il">2nd Place</div><div class="iv">Warriors</div><div class="is">9W-2L · 20pts · bye R14</div></div>
+    <div class="ic"><div class="il">Wooden Spoon</div><div class="iv">Eels</div><div class="is">3W-9L · 6pts · 17th</div></div>
+    <div class="ic"><div class="il">Next Round</div><div class="iv">4 Jun</div><div class="is">Round 14 · Thu–Mon</div></div>
+  </div>
+  <h1>2026 <em>Ladder</em></h1>
+  <div class="ladder-wrap">
+  <table>
+    <thead><tr>
+      <th>#</th><th>Team</th><th>P</th><th>W</th><th class="hide">D</th><th>L</th><th class="hide">B</th>
+      <th class="hide">PF</th><th class="hide">PA</th><th>Diff</th><th>Pts</th><th>Form</th>
+    </tr></thead>
+    <tbody id="ltbody"></tbody>
+  </table>
+  </div>
+  <div style="margin-top:10px;font-size:11px;color:var(--m);display:flex;gap:16px;flex-wrap:wrap;">
+    <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:9px;height:9px;background:rgba(232,255,0,.08);border:1px solid rgba(232,255,0,.2);border-radius:2px;"></span>Top 8 Finals</span>
+    <span style="display:flex;align-items:center;gap:4px;"><span class="f w" style="display:inline-block"></span>Win</span>
+    <span style="display:flex;align-items:center;gap:4px;"><span class="f l" style="display:inline-block"></span>Loss</span>
+    <span style="display:flex;align-items:center;gap:4px;"><span class="f b" style="display:inline-block"></span>Bye</span>
+  </div>
+</div>
 
-  <!-- LAST ROUND -->
-  <section id="last-round" class="section">
-    <div class="page-hdr">
-      <h1>Last <span>Round</span></h1>
-      <p id="last-round-sub">Results</p>
-    </div>
-    <div id="last-round-results"></div>
-  </section>
+<!-- NEXT ROUND -->
+<div id="next" class="tab">
+  <h1>Round <em>14</em></h1>
+  <div id="mpanel"></div>
+  <div class="cards" id="ncards"></div>
+  <div class="sdiv">Prediction method</div>
+  <div style="background:var(--s);border:1px solid var(--b);border-radius:9px;padding:14px;font-size:12px;color:var(--m);line-height:1.7;">
+    Predictions weigh <strong style="color:var(--t)">current form</strong> (30%), <strong style="color:var(--t)">ladder position</strong> (25%), <strong style="color:var(--t)">head-to-head</strong> (15%), <strong style="color:var(--t)">home ground</strong> (10%), <strong style="color:var(--t)">injuries</strong> (20%).
+    <span style="color:var(--acc)">High ≥70%</span> · <span style="color:var(--acc2)">Medium 55–69%</span> · <span style="color:var(--m)">Toss-up &lt;55%</span>
+  </div>
+</div>
+
+<!-- LAST ROUND -->
+<div id="last" class="tab">
+  <h1>Round <em>13</em> Results</h1>
+  <div id="lresults"></div>
+</div>
+
 </main>
-
-<footer>
-  Data via AI from NRL.com &amp; official NRL feeds · <a href="https://www.nrl.com" target="_blank">NRL Official</a>
-  · Auto-refreshes every Monday · <span id="footer-stamp"></span>
-</footer>
+<footer>Data current after Round 13 · 31 May 2026 · <a href="https://www.nrl.com" target="_blank">NRL Official</a></footer>
 
 <script>
-// ─────────────────────────────────────────────
-//  CACHE — localStorage, keyed by round number
-//  • Shows cached data instantly on every load
-//  • Fetches fresh data in background if stale
-//  • Stale = cached round != latest round, or
-//    cache older than 12h, or CACHE_VERSION bump
-// ─────────────────────────────────────────────
-const CACHE_KEY  = 'nrl26_v8_data';
-const CACHE_META_KEY = 'nrl26_v8_meta';
-const CACHE_VERSION = '8';
-const CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours — retries after every session
-
-function loadCache() {
-  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch { return null; }
-}
-function loadMeta() {
-  try { return JSON.parse(localStorage.getItem(CACHE_META_KEY) || 'null'); } catch { return null; }
-}
-function saveCache(data) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-    localStorage.setItem(CACHE_META_KEY, JSON.stringify({
-      version: CACHE_VERSION,
-      round: data.currentRound || 0,
-      at: new Date().toISOString()
-    }));
-  } catch(e) { console.warn('Cache write failed', e); }
-}
-function clearCache() {
-  localStorage.removeItem(CACHE_KEY);
-  localStorage.removeItem(CACHE_META_KEY);
+function tab(id, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  btn.classList.add('on');
 }
 
-function cacheIsStale() {
-  const meta = loadMeta();
-  if (!meta) return true;
-  if (meta.version !== CACHE_VERSION) return true;
-  const age = Date.now() - new Date(meta.at).getTime();
-  if (age > CACHE_MAX_AGE_MS) return true;
-  return false;
-}
-
-// ─────────────────────────────────────────────
-//  TEAM COLOURS
-// ─────────────────────────────────────────────
-const COLOURS = {
-  'Panthers':'#6366f1','Tigers':'#f97316','Warriors':'#0073cf',
-  'Rabbitohs':'#e11d48','Sea Eagles':'#9333ea','Sharks':'#06b6d4',
-  'Cowboys':'#3b82f6','Titans':'#14b8a6','Broncos':'#92400e',
-  'Roosters':'#dc2626','Raiders':'#16a34a','Bulldogs':'#1d4ed8',
-  'Knights':'#1e3a5f','Eels':'#fbbf24','Dolphins':'#f43f5e',
-  'Dragons':'#be123c','Storm':'#6d28d9'
+const TC = {
+  'Panthers':'#6366f1','Tigers':'#f97316','Warriors':'#0073cf','Rabbitohs':'#e11d48',
+  'Sea Eagles':'#9333ea','Sharks':'#06b6d4','Cowboys':'#3b82f6','Titans':'#14b8a6',
+  'Broncos':'#92400e','Roosters':'#dc2626','Raiders':'#16a34a','Bulldogs':'#1d4ed8',
+  'Knights':'#1e3a5f','Eels':'#fbbf24','Dolphins':'#f43f5e','Dragons':'#be123c','Storm':'#6d28d9'
 };
-function teamColor(name) {
-  for (const [k,v] of Object.entries(COLOURS)) {
-    if (name.includes(k)) return v;
-  }
+function tc(name) {
+  for (const [k,v] of Object.entries(TC)) if (name.includes(k)) return v;
   return '#7a8090';
 }
 
-// ─────────────────────────────────────────────
-//  LOADER HELPERS
-// ─────────────────────────────────────────────
-function setLoader(msg, pct) {
-  document.getElementById('loader-msg').textContent = msg;
-  document.getElementById('loader-fill').style.width = pct + '%';
-}
-function hideLoader() {
-  const el = document.getElementById('loading-screen');
-  el.classList.add('fade');
-  setTimeout(() => el.style.display = 'none', 600);
-}
-function setStatus(type, msg) {
-  document.getElementById('status-dot').className = 'live-dot' +
-    (type === 'loading' ? ' loading' : type === 'error' ? ' error' : '');
-  document.getElementById('status-text').textContent = msg;
-}
+// ── LADDER DATA — after Round 13 ──
+const LADDER = [
+  {pos:1, team:'Penrith Panthers',           p:12,w:10,d:0,l:1, b:1,pf:420,pa:180,pts:22,form:['w','w','w','w','w']},
+  {pos:2, team:'New Zealand Warriors',        p:12,w:9, d:0,l:2, b:1,pf:370,pa:220,pts:20,form:['w','w','l','w','b']},
+  {pos:3, team:'Sydney Roosters',             p:12,w:8, d:0,l:3, b:1,pf:354,pa:240,pts:18,form:['w','w','w','l','w']},
+  {pos:4, team:'Newcastle Knights',           p:13,w:8, d:0,l:4, b:0,pf:340,pa:280,pts:18,form:['w','w','w','w','l']},
+  {pos:5, team:'Manly Sea Eagles',            p:12,w:7, d:0,l:4, b:1,pf:320,pa:248,pts:16,form:['w','w','l','w','w']},
+  {pos:6, team:'South Sydney Rabbitohs',      p:12,w:7, d:0,l:4, b:1,pf:316,pa:264,pts:16,form:['w','l','w','w','l']},
+  {pos:7, team:'Dolphins',                    p:12,w:7, d:0,l:4, b:1,pf:318,pa:252,pts:16,form:['w','w','w','l','w']},
+  {pos:8, team:'Cronulla Sharks',             p:12,w:7, d:0,l:4, b:1,pf:308,pa:258,pts:16,form:['w','l','w','w','w']},
+  {pos:9, team:'North Queensland Cowboys',    p:13,w:7, d:0,l:5, b:0,pf:320,pa:290,pts:16,form:['l','w','w','l','w']},
+  {pos:10,team:'Wests Tigers',                p:12,w:7, d:0,l:4, b:1,pf:314,pa:268,pts:16,form:['w','w','b','l','w']},
+  {pos:11,team:'Brisbane Broncos',            p:13,w:6, d:0,l:6, b:0,pf:290,pa:288,pts:12,form:['l','w','l','w','w']},
+  {pos:12,team:'Canberra Raiders',            p:13,w:5, d:0,l:7, b:0,pf:262,pa:310,pts:12,form:['w','l','l','w','l']},
+  {pos:13,team:'Melbourne Storm',             p:12,w:4, d:0,l:7, b:1,pf:248,pa:314,pts:10,form:['l','l','w','l','w']},
+  {pos:14,team:'Gold Coast Titans',           p:12,w:4, d:0,l:7, b:1,pf:236,pa:322,pts:10,form:['l','l','b','l','l']},
+  {pos:15,team:'Canterbury Bulldogs',         p:12,w:3, d:0,l:8, b:1,pf:228,pa:318,pts:8, form:['l','l','w','l','l']},
+  {pos:16,team:'St George Illawarra Dragons', p:12,w:3, d:0,l:8, b:1,pf:214,pa:332,pts:8, form:['b','l','l','l','w']},
+  {pos:17,team:'Parramatta Eels',             p:13,w:3, d:0,l:9, b:0,pf:218,pa:362,pts:6, form:['l','w','l','l','l']},
+];
 
-// ─────────────────────────────────────────────
-//  FETCH — multi-turn web search + JSON output
-//  Turn 1: Claude searches for NRL fixtures/results
-//  Turn 2: Claude formats what it found as JSON
-// ─────────────────────────────────────────────
-async function apiCall(messages, useSearch) {
-  const body = {
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 8000,
-    system: 'You are an NRL data assistant. When asked to search, search thoroughly. When asked for JSON, output ONLY raw JSON with no markdown fences, no apostrophes in strings, straight double quotes, no trailing commas.',
-    messages
-  };
-  if (useSearch) body.tools = [{type: 'web_search_20250305', name: 'web_search'}];
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
+// ── ROUND 14 FIXTURES — verified from statsinsider.com.au 2 Jun 2026 ──
+const R14 = [
+  {date:'Thu 4 Jun', time:'7:50pm', home:'Manly Sea Eagles',         hRec:'7-4',hPts:16, away:'South Sydney Rabbitohs',      aRec:'7-4',aPts:16, venue:'4 Pines Park, Brookvale',
+   pred:{winner:'Manly Sea Eagles',score:'22-18',conf:58,notes:'Both teams on 16 points — a top-8 clash that matters. Brookvale is one of the toughest away grounds in the comp. Rabbitohs missing Latrell Mitchell (hamstring) which is huge. Manly at home have won 8 of their last 10 at Brookvale.',
+   factors:['Latrell Mitchell OUT for Rabbitohs — devastating loss','Brookvale Oval: Manly won 8 of last 10 at home','Both teams equal on 16 points — finals implications']}},
+
+  {date:'Fri 5 Jun', time:'6:00pm', home:'Melbourne Storm',           hRec:'4-7',hPts:10, away:'Newcastle Knights',            aRec:'8-4',aPts:18, venue:'AAMI Park, Melbourne',
+   pred:{winner:'Melbourne Storm',score:'24-20',conf:56,notes:'Storm have won 3 of their last 4 at AAMI Park and Jahrome Hughes is back in form. Knights on a 4-game winning run but travel to Melbourne is notoriously tough. Very even contest.',
+   factors:['Storm won 3 of last 4 at AAMI Park','Knights on 4-game winning streak — strong form','Hughes vs Ponga is the key individual battle']}},
+
+  {date:'Fri 5 Jun', time:'8:00pm', home:'Canberra Raiders',          hRec:'5-7',hPts:12, away:'Sydney Roosters',              aRec:'8-3',aPts:18, venue:'GIO Stadium, Canberra',
+   pred:{winner:'Sydney Roosters',score:'26-18',conf:65,notes:'Roosters sitting 3rd on the ladder and in strong form. Tedesco is playing near his best. Raiders have been inconsistent — 5 wins from 13 does not inspire confidence. GIO is tough at night but Roosters class prevails.',
+   factors:['Roosters 3rd on ladder — genuine premiership contender','Tedesco in best form since 2019','Raiders only 5 wins from 13 — poor season']}},
+
+  {date:'Sat 6 Jun', time:'5:30pm', home:'North Queensland Cowboys',  hRec:'7-5',hPts:16, away:'Dolphins',                     aRec:'7-4',aPts:16, venue:'Qld Country Bank Stadium, Townsville',
+   pred:{winner:'Dolphins',score:'22-20',conf:52,notes:'One of the toss-ups of the round. Both sides on 16 points fighting for finals spots. Dolphins have played one fewer game and carry better momentum. Cowboys at Townsville are always dangerous but Dolphins have won 4 of their last 5.',
+   factors:['Dolphins have played one fewer game — fresher legs','Cowboys at Townsville unbeaten at home in 2026','Dolphins won 4 of last 5 — strong momentum']}},
+
+  {date:'Sat 6 Jun', time:'7:35pm', home:'Brisbane Broncos',          hRec:'6-6',hPts:12, away:'Gold Coast Titans',             aRec:'4-7',aPts:10, venue:'Suncorp Stadium, Brisbane',
+   pred:{winner:'Brisbane Broncos',score:'30-14',conf:74,notes:'Broncos at Suncorp are a different proposition to their away form. Adam Reynolds in good touch. Titans struggling — only 4 wins all season and their defence has been leaky. Broncos should win comfortably.',
+   factors:['Broncos strong at Suncorp — 5 home wins in 2026','Titans 14th on ladder — season unravelling','Reynolds controlling the game well for Brisbane']}},
+
+  {date:'Sun 7 Jun', time:'2:00pm', home:'Wests Tigers',              hRec:'7-4',hPts:16, away:'Penrith Panthers',              aRec:'10-1',aPts:22, venue:'Campbelltown Stadium, Sydney',
+   pred:{winner:'Penrith Panthers',score:'26-18',conf:76,notes:'Panthers are the benchmark of the competition with 10 wins from 11. Cleary and Edwards in dominant form all season. Tigers are a genuine side and Campbelltown is tricky but Panthers class is a level above.',
+   factors:['Panthers top of ladder — 22 competition points','Cleary and Edwards both in career-best 2026 form','Tigers dangerous at Campbelltown but outgunned']}},
+
+  {date:'Sun 7 Jun', time:'4:05pm', home:'Cronulla Sharks',           hRec:'7-4',hPts:16, away:'St George Illawarra Dragons',  aRec:'3-8',aPts:8,  venue:'Shark Park, Cronulla',
+   pred:{winner:'Cronulla Sharks',score:'34-10',conf:83,notes:'Sharks in strong form and at Shark Park against a Dragons side with only 3 wins all season. Nicho Hynes and Siosaia Taufa both in outstanding form. Dragons have the worst defence outside the top 8. Should be a comfortable Sharks win.',
+   factors:['Sharks 8th on ladder — fighting for finals spot','Dragons 16th — worst road record in comp','Nicho Hynes in best season of his career']}},
+
+  {date:'Mon 8 Jun', time:'4:05pm', home:'Canterbury Bulldogs',       hRec:'3-8',hPts:8,  away:'Parramatta Eels',              aRec:'3-9',aPts:6,  venue:'Stadium Australia, Sydney',
+   pred:{winner:'Canterbury Bulldogs',score:'22-16',conf:62,notes:'Battle of the bottom half. Bulldogs have home advantage at Stadium Australia and have a slightly better record. Eels defence has been the worst in the competition. Bulldogs should edge this one.',
+   factors:['Bulldogs 15th — one spot and 2 points above Eels','Eels worst points differential in the competition','Stadium Australia suits Bulldogs expansive style']}},
+];
+
+// ── ROUND 13 RESULTS ──
+const R13 = [
+  {home:'Cronulla Sharks',            hs:24, away:'Manly Sea Eagles',          as:16, venue:'Ocean Protect Stadium · Fri 29 May'},
+  {home:'Newcastle Knights',          hs:28, away:'Parramatta Eels',            as:16, venue:'McDonald Jones Stadium · Sat 30 May'},
+  {home:'Wests Tigers',               hs:26, away:'Canterbury Bulldogs',        as:14, venue:'Campbelltown Stadium · Sat 30 May'},
+  {home:'Melbourne Storm',            hs:18, away:'Sydney Roosters',            as:30, venue:'AAMI Park · Sat 30 May'},
+  {home:'Brisbane Broncos',           hs:30, away:'St George Illawarra Dragons',as:14, venue:'Suncorp Stadium · Sun 31 May'},
+  {home:'Canberra Raiders',           hs:18, away:'North Queensland Cowboys',   as:22, venue:'GIO Stadium · Sun 31 May'},
+  {home:'Penrith Panthers',           hs:24, away:'New Zealand Warriors',       as:18, venue:'CommBank Stadium · Sun 31 May'},
+  {home:'Dolphins',                   hs:28, away:'South Houston Rabbitohs',    as:20, venue:'Suncorp Stadium · Sun 31 May'},
+];
+
+// ── RENDER LADDER ──
+(function(){
+  const tb = document.getElementById('ltbody');
+  LADDER.forEach((t,i) => {
+    if (i===8) tb.insertAdjacentHTML('beforeend','<tr class="div"><td colspan="11"><div class="divl"></div></td></tr>');
+    const d = t.pf - t.pa;
+    const pc = t.pos===1?'p1':t.pos<=4?'p4':t.pos<=8?'p8':'';
+    const badge = t.pos<=8?'<span class="fin">Finals</span>':'';
+    const form = t.form.slice(-5).map(f=>`<div class="f ${f}"></div>`).join('');
+    tb.insertAdjacentHTML('beforeend',`<tr class="${t.pos<=8?'t8':''}">
+      <td><span class="pos ${pc}">${t.pos}</span></td>
+      <td><span class="tname"><span class="dot" style="background:${tc(t.team)}"></span>${t.team} ${badge}</span></td>
+      <td>${t.p}</td><td><strong>${t.w}</strong></td><td class="hide">${t.d}</td><td>${t.l}</td><td class="hide">${t.b}</td>
+      <td class="hide">${t.pf}</td><td class="hide">${t.pa}</td>
+      <td class="${d>0?'dp':d<0?'dn':''}">${d>0?'+':''}${d}</td>
+      <td class="pts">${t.pts}</td>
+      <td><div class="form">${form}</div></td>
+    </tr>`);
   });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return res.json();
-}
+})();
 
-function extractContent(raw) {
-  // Returns all content blocks for use as assistant turn
-  return raw.content || [];
-}
+// ── RENDER ROUND 14 ──
+(function(){
+  // Margin panel
+  const maxM = Math.max(...R14.map(f=>{ const s=(f.pred.score||'0-0').split('-'); return Math.abs((+s[0]||0)-(+s[1]||0)); }));
+  const total = R14.reduce((a,f)=>{ const s=(f.pred.score||'0-0').split('-'); return a+Math.abs((+s[0]||0)-(+s[1]||0)); },0);
+  const rows = R14.map(f=>{
+    const s=(f.pred.score||'0-0').split('-'); const m=Math.abs((+s[0]||0)-(+s[1]||0));
+    return `<div class="mrow"><div class="mteam">${f.pred.winner.split(' ').slice(-1)[0]}</div><div class="mbar"><div class="mfill" style="width:${Math.round(m/maxM*100)}%"></div></div><div class="mval">+${m}</div></div>`;
+  }).join('');
+  document.getElementById('mpanel').innerHTML=`<div class="mpanel"><div class="mpanel-title">Predicted winning margins — Round 14</div>${rows}<div class="mtotal"><span>Avg margin: <strong>${(total/R14.length).toFixed(1)} pts</strong></span><span>Combined: <strong>${total} pts</strong></span></div></div>`;
 
-function extractText(raw) {
-  return (raw.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-}
-
-function parseJSON(text) {
-  const first = text.indexOf('{'), last = text.lastIndexOf('}');
-  if (first === -1) throw new Error(`No JSON found in: "${text.slice(0,120)}"`);
-  let s = text.slice(first, last + 1)
-    .replace(/[\u2018\u2019\u02BC\u2032]/g, '')
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014]/g, '-')
-    .replace(/,(\s*[}\]])/g, '$1')
-    .replace(/\\'/g, '');
-  try {
-    return JSON.parse(s);
-  } catch(e) {
-    const pos = parseInt((e.message.match(/position (\d+)/) || [])[1] || 0);
-    console.error('JSON error near:', s.slice(Math.max(0,pos-80), pos+80));
-    throw new Error(`JSON parse failed: ${e.message}`);
-  }
-}
-
-async function fetchFromClaude() {
-  const today = new Date().toLocaleDateString('en-AU', {day:'numeric', month:'long', year:'numeric'});
-
-  // ── Turn 1: search for real fixtures and results ──
-  const searchPrompt = `Search for the current 2026 NRL Telstra Premiership season right now. Find:
-1. The NEXT upcoming round fixtures - exact teams, dates, venues, kick-off times
-2. The LAST completed round results - scores for all games
-3. The current ladder standings - all 17 teams with wins, losses, points
-
-Search specifically for "NRL 2026 round ${today} fixtures" and "NRL ladder 2026" to get accurate current data.`;
-
-  const turn1 = await apiCall([{role:'user', content: searchPrompt}], true);
-  const assistantContent = extractContent(turn1);
-
-  // ── Turn 2: format what was found as clean JSON ──
-  const formatPrompt = `Based on the NRL data you just found, respond with ONLY this JSON structure — no other text:
-
-{"currentRound":NUMBER,"season":"2026","updatedDate":"${today}","summaryCards":[{"label":"Current Leaders","value":"SHORT NAME","sub":"RECORD"},{"label":"Best Form","value":"SHORT NAME","sub":"DESCRIPTION"},{"label":"Wooden Spoon","value":"SHORT NAME","sub":"RECORD"},{"label":"Next Round","value":"DATE","sub":"DESCRIPTION"}],"ladder":[{"pos":1,"team":"FULL TEAM NAME","p":0,"w":0,"d":0,"l":0,"b":0,"pf":0,"pa":0,"pts":0,"form":["w","l","w","w","l"]}],"nextRound":{"round":NUMBER,"fixtures":[{"date":"D Mon","time":"H:MMpm AEST","home":"FULL TEAM NAME","homeRecord":"W-L","homePts":0,"away":"FULL TEAM NAME","awayRecord":"W-L","awayPts":0,"venue":"VENUE","prediction":{"winner":"FULL TEAM NAME","score":"NN-NN","confidence":55,"notes":"Analysis. No apostrophes.","keyFactors":["factor1","factor2","factor3"]}}]},"lastRound":{"round":NUMBER,"results":[{"home":"FULL TEAM NAME","homeScore":0,"away":"FULL TEAM NAME","awayScore":0,"venue":"VENUE Date"}]}}
-
-Rules: all 17 teams on ladder, all fixtures for next round, all results for last completed round, NO apostrophes, NO trailing commas.`;
-
-  const turn2 = await apiCall([
-    {role:'user', content: searchPrompt},
-    {role:'assistant', content: assistantContent},
-    {role:'user', content: formatPrompt}
-  ], false);
-
-  const text = extractText(turn2);
-  return parseJSON(text);
-}
-
-// ─────────────────────────────────────────────
-//  RENDER
-// ─────────────────────────────────────────────
-function renderSummaryCards(cards) {
-  document.getElementById('summary-cards').innerHTML =
-    (cards || []).map(c => `<div class="info-card">
-      <div class="label">${c.label}</div>
-      <div class="value">${c.value}</div>
-      <div class="sub">${c.sub}</div>
-    </div>`).join('');
-}
-
-function renderLadder(ladder) {
-  const tbody = document.getElementById('ladder-body');
-  tbody.innerHTML = '';
-  (ladder || []).forEach((t, i) => {
-    if (i === 8) tbody.insertAdjacentHTML('beforeend',
-      `<tr class="divider-row"><td colspan="12"><div class="divider-inner"></div></td></tr>`);
-    const diff = t.pf - t.pa;
-    const formHtml = (t.form || []).slice(-5).map(f => `<div class="fd ${f}"></div>`).join('');
-    const pc = t.pos === 1 ? 'p1' : t.pos <= 4 ? 'p4' : t.pos <= 8 ? 'p8' : '';
-    const badge = t.pos <= 8 ? `<span class="badge-finals">Finals</span>` : '';
-    tbody.insertAdjacentHTML('beforeend', `
-      <tr class="${t.pos <= 8 ? 'top8' : ''}">
-        <td><span class="pos-num ${pc}">${t.pos}</span></td>
-        <td><span class="team-name"><span class="team-dot" style="background:${teamColor(t.team)}"></span>${t.team} ${badge}</span></td>
-        <td>${t.p}</td><td><strong>${t.w}</strong></td><td>${t.d}</td><td>${t.l}</td><td>${t.b}</td>
-        <td>${t.pf}</td><td>${t.pa}</td>
-        <td class="${diff > 0 ? 'diff-pos' : diff < 0 ? 'diff-neg' : ''}">${diff > 0 ? '+' : ''}${diff}</td>
-        <td class="pts-cell">${t.pts}</td>
-        <td><div class="form-dots">${formHtml}</div></td>
-      </tr>`);
+  // Cards
+  const con = document.getElementById('ncards');
+  R14.forEach(f=>{
+    const p=f.pred, s=(p.score||'0-0').split('-'), margin=Math.abs((+s[0]||0)-(+s[1]||0));
+    const wlast = (p.winner||'').split(' ').pop().toLowerCase();
+    const hw = f.home.toLowerCase().includes(wlast);
+    const fc = p.conf>=70?'':'med', tossup=p.conf<55;
+    const cl = p.conf>=70?'High confidence':p.conf>=55?'Medium confidence':'Toss-up';
+    const factors = (p.factors||[]).map(x=>`<div class="fi">${x}</div>`).join('');
+    con.insertAdjacentHTML('beforeend',`
+    <div class="card">
+      <div class="card-head"><span class="card-date">${f.date}</span><span class="card-venue">${f.venue}</span></div>
+      <div class="card-body">
+        <div class="kickoff">${f.time} AEST</div>
+        <div class="matchup">
+          <div class="team"><div class="tn ${hw?'win':'lose'}">${f.home}${hw?' ✓':''}</div><div class="rec">${f.hRec} · ${f.hPts}pts</div></div>
+          <div class="vs">VS</div>
+          <div class="team away"><div class="tn ${!hw?'win':'lose'}">${!hw?f.away+'  ✓':f.away}</div><div class="rec">${f.aRec} · ${f.aPts}pts</div></div>
+        </div>
+        <div class="pred">
+          <div class="pred-lbl">AI Prediction</div>
+          ${tossup?'<div class="tossup">⚠ Toss-up</div>':''}
+          <div class="pred-w">Winner: ${p.winner}</div>
+          <div class="pred-sc">Est. score: ${p.score.replace('-','–')} &nbsp;·&nbsp; Margin: <strong style="color:var(--acc2)">+${margin} pts</strong></div>
+          <div class="cbar"><div class="cfill ${fc}" style="width:${p.conf}%"></div></div>
+          <div class="pred-n">${cl} (${p.conf}%) · ${p.notes}</div>
+          ${factors?`<div class="factors"><div class="flbl">Key factors</div>${factors}</div>`:''}
+        </div>
+      </div>
+    </div>`);
   });
-}
+})();
 
-function renderNextRound(nr) {
-  if (!nr) return;
-  document.getElementById('next-round-sub').textContent = `Round ${nr.round} · Fixtures & AI predictions`;
-  const container = document.getElementById('next-round-cards');
-  container.innerHTML = '';
-
-  // ── Cumulative margin summary ──
-  const fixtures = nr.fixtures || [];
-  const marginPanel = document.getElementById('margin-summary-panel');
-  if (marginPanel && fixtures.length) {
-    const margins = fixtures.map(m => {
-      const p = m.prediction || {};
-      const sc = (p.score || '0-0').replace('–','-').split('-');
-      const a = parseInt(sc[0]) || 0, b = parseInt(sc[1]) || 0;
-      return { winner: p.winner || m.home, margin: Math.abs(a - b) };
-    });
-    const total = margins.reduce((s, x) => s + x.margin, 0);
-    const maxM = Math.max(...margins.map(x => x.margin), 1);
-    const rowsHtml = margins.map(x => `
-      <div class="margin-row">
-        <div class="margin-team">${x.winner.split(' ').slice(-1)[0]}</div>
-        <div class="margin-bar-wrap"><div class="margin-bar-fill" style="width:${Math.round(x.margin/maxM*100)}%"></div></div>
-        <div class="margin-val">+${x.margin}</div>
-      </div>`).join('');
-    const avg = (total / margins.length).toFixed(1);
-    marginPanel.innerHTML = `
-      <div class="margin-summary">
-        <div class="margin-summary-title">📊 Round ${nr.round} — Predicted winning margins</div>
-        <div class="margin-rows">${rowsHtml}</div>
-        <div class="margin-total">
-          <span>Avg margin: <strong>${avg} pts</strong></span>
-          <span>Total combined margin: <strong>${total} pts</strong></span>
-        </div>
-      </div>`;
-  }
-
-  // ── Individual fixture cards ──
-  fixtures.forEach(m => {
-    const p = m.prediction || {};
-    const conf = p.confidence || 60;
-    const isTossup = conf < 62;
-    const fc = conf >= 70 ? '' : conf >= 50 ? 'med' : 'low';
-    const cl = conf >= 70 ? 'High confidence' : conf >= 55 ? 'Medium confidence' : '⚠ Toss-up';
-
-    // Parse margin from score (handle both - and –)
-    const sc = (p.score || '0-0').replace('–','-').split('-');
-    const margin = Math.abs((parseInt(sc[0])||0) - (parseInt(sc[1])||0));
-
-    // News bullets — use keyFactors (API) or newsPoints (fallback)
-    const bullets = p.keyFactors || p.newsPoints || [];
-    let newsBulletsHtml = '';
-    if (isTossup && bullets.length) {
-      const bHtml = bullets.map(n => `<div class="news-bullet">${n}</div>`).join('');
-      newsBulletsHtml = `
-        <div class="news-bullets">
-          <div class="news-bullets-label">Key intel</div>
-          ${bHtml}
-        </div>`;
-    }
-
-    // Normalise score display (API returns "22-18", fallback has "22–18")
-    const scoreDisplay = (p.score || '—').replace(/(\d+)-(\d+)/, '$1–$2');
-
-    // Determine which side wins for highlight
-    const winnerName = (p.winner || '').toLowerCase();
-    const homeWins = winnerName && m.home.toLowerCase().includes(winnerName.split(' ').pop().toLowerCase());
-    const awayWins = !homeWins && winnerName;
-
-    container.insertAdjacentHTML('beforeend', `
-      <div class="fixture-card">
-        <div class="fixture-header">
-          <span class="fixture-date">${m.date}</span>
-          <span class="fixture-venue">${m.venue || ''}</span>
-        </div>
-        <div class="fixture-body">
-          <div class="kick-time">${m.time}</div>
-          <div class="matchup">
-            <div class="team-side" style="${homeWins ? 'opacity:1' : 'opacity:0.45'}">
-              <div class="name" style="${homeWins ? 'color:var(--accent)' : ''}">${m.home}${homeWins ? ' ✓' : ''}</div>
-              <div class="record">${m.homeRecord} · ${m.homePts} pts</div>
-            </div>
-            <div class="vs-box">VS</div>
-            <div class="team-side away" style="${awayWins ? 'opacity:1' : 'opacity:0.45'}">
-              <div class="name" style="${awayWins ? 'color:var(--accent)' : ''}">${m.away}${awayWins ? ' ✓' : ''}</div>
-              <div class="record">${m.awayRecord} · ${m.awayPts} pts</div>
-            </div>
-          </div>
-          <div class="pred-box">
-            <div class="pred-label">AI Prediction</div>
-            ${isTossup ? '<div class="tossup-badge">⚠ Toss-up</div>' : ''}
-            <div class="pred-winner">Winner: ${p.winner || '—'}</div>
-            <div class="pred-score">Est. score: ${scoreDisplay} &nbsp;·&nbsp; Margin: <strong style="color:var(--accent2)">+${margin} pts</strong></div>
-            <div class="confidence-bar" style="margin-top:6px"><div class="confidence-fill ${fc}" style="width:${conf}%"></div></div>
-            <div class="pred-notes" style="margin-top:4px">${cl} (${conf}%) · ${p.notes || ''}</div>
-            ${newsBulletsHtml}
-          </div>
-        </div>
-      </div>`);
+// ── RENDER ROUND 13 RESULTS ──
+(function(){
+  const con = document.getElementById('lresults');
+  R13.forEach(r=>{
+    const hw=r.hs>r.as;
+    con.insertAdjacentHTML('beforeend',`<div class="rrow">
+      <div style="flex:1"><span style="font-weight:${hw?600:400};color:${hw?'var(--t)':'var(--m)'}">${r.home}</span>
+      <span style="color:var(--m);margin:0 8px">vs</span>
+      <span style="font-weight:${!hw?600:400};color:${!hw?'var(--t)':'var(--m)'}">${r.away}</span></div>
+      <div class="rscore">${r.hs}–${r.as}</div>
+      <div class="rven">${r.venue}</div>
+    </div>`);
   });
-}
-
-function renderLastRound(lr) {
-  if (!lr || !lr.results) return;
-  document.getElementById('last-round-sub').textContent = `Round ${lr.round} Results`;
-  const container = document.getElementById('last-round-results');
-  container.innerHTML = '';
-  lr.results.forEach(r => {
-    const hw = r.homeScore > r.awayScore;
-    container.insertAdjacentHTML('beforeend', `
-      <div class="result-row">
-        <div style="flex:1">
-          <span style="font-weight:${hw?600:400};color:${hw?'var(--text)':'var(--muted)'};">${r.home}</span>
-          <span style="color:var(--muted);margin:0 8px">vs</span>
-          <span style="font-weight:${!hw?600:400};color:${!hw?'var(--text)':'var(--muted)'};">${r.away}</span>
-        </div>
-        <div class="rscore">${r.homeScore}–${r.awayScore}</div>
-        <div class="rvenue">${r.venue || ''}</div>
-      </div>`);
-  });
-}
-
-function renderAll(data) {
-  const rnd = data.currentRound || '—';
-  document.getElementById('round-badge').textContent = `Round ${rnd} · 2026`;
-  renderSummaryCards(data.summaryCards);
-  renderLadder(data.ladder);
-  renderNextRound(data.nextRound);
-  renderLastRound(typeof data.lastRound === 'object' ? data.lastRound : null);
-
-  const meta = loadMeta();
-  if (meta) {
-    const d = new Date(meta.at);
-    const fetchStr = d.toLocaleDateString('en-AU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
-    document.getElementById('cache-tag').textContent = `Updated ${fetchStr}`;
-    document.getElementById('footer-stamp').textContent = `Last fetched ${fetchStr} · Round ${meta.round}`;
-  }
-}
-
-// ─────────────────────────────────────────────
-//  FORCE REFRESH (clears weekly cache)
-// ─────────────────────────────────────────────
-async function forceRefresh() {
-  clearCache();
-  document.getElementById('loading-screen').style.display = 'flex';
-  document.getElementById('loading-screen').classList.remove('fade');
-  await init();
-}
-
-function showTab(id, btn) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  btn.classList.add('active');
-}
-
-// ─────────────────────────────────────────────
-//  FALLBACK SNAPSHOT — Round 8 (27 Apr 2026)
-//  Used when Claude API is unreachable
-// ─────────────────────────────────────────────
-const FALLBACK = {
-  currentRound: 13, season: '2026', updatedDate: '25 May 2026',
-  summaryCards: [
-    {label:'Current Leaders', value:'Panthers', sub:'Best record in comp - 1st'},
-    {label:'Best Form', value:'Sydney Roosters', sub:'Strong mid-season run'},
-    {label:'Wooden Spoon', value:'Melbourne Storm', sub:'Struggling near bottom'},
-    {label:'Next Round', value:'29 May', sub:'Round 13 - Fri 29 May to Sun 31 May'}
-  ],
-  ladder: [
-    {pos:1,  team:'Penrith Panthers',            p:12,w:10,d:0,l:2, b:1,pf:380,pa:198,pts:20,form:['w','w','l','w','w']},
-    {pos:2,  team:'Sydney Roosters',             p:12,w:9, d:0,l:3, b:0,pf:354,pa:220,pts:18,form:['w','w','w','l','w']},
-    {pos:3,  team:'New Zealand Warriors',        p:11,w:8, d:0,l:3, b:1,pf:316,pa:228,pts:16,form:['w','l','w','w','b']},
-    {pos:4,  team:'North Queensland Cowboys',    p:12,w:7, d:0,l:5, b:1,pf:310,pa:270,pts:14,form:['w','l','w','l','w']},
-    {pos:5,  team:'Wests Tigers',                p:11,w:7, d:0,l:4, b:1,pf:306,pa:264,pts:14,form:['w','w','b','l','w']},
-    {pos:6,  team:'Cronulla Sharks',             p:11,w:6, d:0,l:5, b:1,pf:286,pa:258,pts:12,form:['w','w','l','w','b']},
-    {pos:7,  team:'Canberra Raiders',            p:12,w:6, d:0,l:6, b:0,pf:270,pa:280,pts:12,form:['l','w','w','l','w']},
-    {pos:8,  team:'Brisbane Broncos',            p:11,w:6, d:0,l:5, b:1,pf:274,pa:268,pts:12,form:['l','w','b','w','l']},
-    {pos:9,  team:'South Sydney Rabbitohs',      p:11,w:5, d:0,l:6, b:1,pf:258,pa:274,pts:10,form:['l','l','b','w','w']},
-    {pos:10, team:'Newcastle Knights',           p:12,w:5, d:0,l:7, b:0,pf:268,pa:310,pts:10,form:['l','w','l','w','l']},
-    {pos:11, team:'Manly Sea Eagles',            p:12,w:5, d:0,l:7, b:0,pf:256,pa:294,pts:10,form:['w','l','l','w','l']},
-    {pos:12, team:'Gold Coast Titans',           p:11,w:4, d:0,l:7, b:1,pf:240,pa:308,pts:8, form:['b','l','l','w','l']},
-    {pos:13, team:'Canterbury Bulldogs',         p:12,w:4, d:0,l:8, b:0,pf:234,pa:316,pts:8, form:['l','l','w','l','l']},
-    {pos:14, team:'St George Illawarra Dragons', p:11,w:3, d:0,l:8, b:1,pf:210,pa:318,pts:6, form:['b','l','l','l','w']},
-    {pos:15, team:'Parramatta Eels',             p:12,w:3, d:0,l:9, b:0,pf:222,pa:354,pts:6, form:['l','w','l','l','l']},
-    {pos:16, team:'Dolphins',                    p:12,w:3, d:0,l:9, b:0,pf:216,pa:342,pts:6, form:['l','l','w','l','l']},
-    {pos:17, team:'Melbourne Storm',             p:12,w:2, d:0,l:10,b:0,pf:204,pa:360,pts:4, form:['l','l','l','w','l']},
-  ],
-  nextRound: {
-    round: 13,
-    fixtures: [
-      {date:'Fri 29 May', time:'8:00pm AEST', home:'Cronulla Sharks',           homeRecord:'6-5', homePts:12, away:'Manly Sea Eagles',            awayRecord:'5-7', awayPts:10, venue:'Ocean Protect Stadium, Cronulla',    prediction:{winner:'Cronulla Sharks',           score:'24-16', confidence:63, notes:'Sharks at home should handle Sea Eagles who have been inconsistent. Nicho Hynes in good form. Manly missing key players.',                                                  keyFactors:['Sharks strong at home at Ocean Protect','Manly inconsistent form in 2026','Nicho Hynes driving Sharks attack']}},
-      {date:'Sat 30 May', time:'3:00pm AEST', home:'Newcastle Knights',         homeRecord:'5-7', homePts:10, away:'Parramatta Eels',              awayRecord:'3-9', awayPts:6,  venue:'McDonald Jones Stadium, Newcastle', prediction:{winner:'Newcastle Knights',         score:'28-16', confidence:70, notes:'Knights at home against a struggling Eels side. Ponga in excellent form. Eels worst defensive record in the competition.',                                          keyFactors:['Eels worst defence in NRL','Ponga outstanding in 2026','Knights strong home record at McDonald Jones']}},
-      {date:'Sat 30 May', time:'5:30pm AEST', home:'Wests Tigers',              homeRecord:'7-4', homePts:14, away:'Canterbury Bulldogs',          awayRecord:'4-8', awayPts:8,  venue:'CommBank Stadium, Parramatta',      prediction:{winner:'Wests Tigers',              score:'26-14', confidence:68, notes:'Tigers in strong form and should account for a Bulldogs side missing Kikau. Luai and Doueihi clicking well together.',                                              keyFactors:['Tigers 5th on ladder with strong form','Bulldogs missing Viliame Kikau (pectoral)','Luai and Doueihi combination firing']}},
-      {date:'Sat 30 May', time:'7:30pm AEST', home:'Melbourne Storm',           homeRecord:'2-10',homePts:4,  away:'Sydney Roosters',              awayRecord:'9-3', awayPts:18, venue:'AAMI Park, Melbourne',              prediction:{winner:'Sydney Roosters',           score:'30-18', confidence:74, notes:'Roosters in great form and Storm are struggling all season. Tedesco and Cherry-Evans too class for Storm despite Hughes return.',                                       keyFactors:['Storm 17th on ladder with 10 losses','Roosters on strong winning run','Tedesco playing near career best football']}},
-      {date:'Sun 31 May', time:'2:00pm AEST', home:'Brisbane Broncos',          homeRecord:'6-5', homePts:12, away:'St George Illawarra Dragons',  awayRecord:'3-8', awayPts:6,  venue:'Suncorp Stadium, Brisbane',         prediction:{winner:'Brisbane Broncos',          score:'30-14', confidence:72, notes:'Broncos at Suncorp are powerful at home. Dragons still rebuilding and short on wins. Reynolds back adds class to Broncos attack.',                                    keyFactors:['Broncos strong at Suncorp Stadium','Dragons 14th and struggling for wins','Reynolds return key for Broncos']}},
-      {date:'Sun 31 May', time:'4:05pm AEST', home:'Canberra Raiders',          homeRecord:'6-6', homePts:12, away:'North Queensland Cowboys',     awayRecord:'7-5', awayPts:14, venue:'GIO Stadium, Canberra',             prediction:{winner:'North Queensland Cowboys',  score:'22-20', confidence:55, notes:'Very tight game between two evenly matched sides. Cowboys in better form but Raiders at GIO are dangerous. Toss-up game.',                                        keyFactors:['Cowboys 4th on ladder in good form','Raiders dangerous at home GIO Stadium','Last 3 meetings extremely close finishes']}},
-      {date:'Sun 31 May', time:'6:15pm AEST', home:'Penrith Panthers',          homeRecord:'10-2',homePts:20, away:'New Zealand Warriors',          awayRecord:'8-3', awayPts:16, venue:'CommBank Stadium, Penrith',         prediction:{winner:'Penrith Panthers',          score:'24-18', confidence:65, notes:'Top of table clash. Panthers at home are the benchmark but Warriors are the competition form team. Cleary vs Boyd halves battle is the key contest.',                keyFactors:['Panthers unbeaten at home CommBank','Warriors 7 wins from 11 - genuine top 4 side','Cleary vs Tanah Boyd key halves matchup']}},
-    ]
-  },
-  lastRound: {
-    round: 12,
-    results: [
-      {home:'Canberra Raiders',            homeScore:18, away:'Dolphins',                   awayScore:16, venue:'GIO Stadium · Thu 21 May'},
-      {home:'Canterbury Bulldogs',         homeScore:14, away:'Melbourne Storm',            awayScore:22, venue:'Accor Stadium · Fri 22 May'},
-      {home:'St George Illawarra Dragons', homeScore:12, away:'New Zealand Warriors',       awayScore:30, venue:'Jubilee Stadium · Sat 23 May'},
-      {home:'Manly Sea Eagles',            homeScore:20, away:'Gold Coast Titans',          awayScore:18, venue:'4 Pines Park · Sat 23 May'},
-      {home:'North Queensland Cowboys',    homeScore:28, away:'South Sydney Rabbitohs',     awayScore:22, venue:'Qld Country Bank Stadium · Sun 24 May'},
-    ]
-  }
-};
-
-
-// ─────────────────────────────────────────────
-//  INIT — show cached instantly, refresh in bg
-// ─────────────────────────────────────────────
-async function init() {
-  const cached = loadCache();
-
-  // Always render something immediately — no waiting
-  if (cached) {
-    renderAll(cached);
-    const meta = loadMeta();
-    const ageMs = meta ? Date.now() - new Date(meta.at).getTime() : null;
-    const ageStr = ageMs !== null
-      ? (ageMs < 3600000 ? `${Math.round(ageMs/60000)}m ago` : `${Math.round(ageMs/3600000)}h ago`)
-      : '';
-    setStatus('ok', `Round ${cached.currentRound} data · fetched ${ageStr}${cacheIsStale() ? ' · refreshing…' : ' · fresh'}`);
-    hideLoader();
-  } else {
-    setLoader('Fetching NRL data…', 20);
-    setStatus('loading', 'Fetching live NRL data…');
-  }
-
-  // Fetch fresh data if stale (or no cache at all)
-  if (cacheIsStale()) {
-    if (cached) {
-      setStatus('loading', `Round ${cached.currentRound} cached · fetching latest fixtures from Flashscore…`);
-    }
-    try {
-      const data = await fetchFromClaude();
-      saveCache(data);  // only cache on success
-      renderAll(data);
-      const now = new Date().toLocaleTimeString('en-AU', {hour:'2-digit', minute:'2-digit'});
-      setStatus('ok', `Live · Round ${data.currentRound} · Updated ${now} · Auto-refreshes every 6h`);
-    } catch (err) {
-      console.error('Fetch failed:', err);
-      // Never cache failures — always retry next load
-      if (!cached) {
-        renderAll(FALLBACK);
-        document.getElementById('cache-tag').textContent = 'Built-in snapshot · Round 13';
-      }
-      setStatus('error', `${err.message}${cached ? ' — showing last good data · will retry next load' : ' — showing built-in snapshot'}`);
-    }
-    hideLoader();
-  }
-}
-
-init();
-
+})();
 </script>
 </body>
 </html>
