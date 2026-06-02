@@ -313,132 +313,83 @@ function setStatus(type, msg) {
 }
 
 // ─────────────────────────────────────────────
-//  STEP 1: Scrape Flashscore for real NRL data
+//  FETCH — multi-turn web search + JSON output
+//  Turn 1: Claude searches for NRL fixtures/results
+//  Turn 2: Claude formats what it found as JSON
 // ─────────────────────────────────────────────
-const PROXIES = [
-  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-];
-
-async function proxyFetch(url) {
-  for (const proxy of PROXIES) {
-    try {
-      const res = await fetch(proxy(url), {signal: AbortSignal.timeout(8000)});
-      if (!res.ok) continue;
-      const data = await res.json();
-      // allorigins wraps in {contents:...}, corsproxy returns text directly
-      return data.contents || await res.text?.() || JSON.stringify(data);
-    } catch(e) { continue; }
-  }
-  throw new Error('All proxies failed');
-}
-
-function parseFlashscoreNRL(text) {
-  // Flashscore embeds fixture links like:
-  // 29.05 [Cronulla Sharks v Manly Sea Eagles](https://.../)
-  // Results have scores embedded in match pages - we parse what's in the summary page
-  const results = { fixtures: [], results: [], currentRound: null };
-
-  // Extract date + team pairs from the plain-text representation
-  // Format: "DD.MM Team1 v Team2" or from anchor text "Team1-team2"
-  const dateTeamRe = /(\d{2}\.\d{2})\s+\[?([A-Z][^[\]v\n]+?)\s+[vV]\s*\.?\s*([A-Z][^[\]\n/]+?)\]?\s*\(/g;
-  let m;
-  while ((m = dateTeamRe.exec(text)) !== null) {
-    const [, rawDate, home, away] = m;
-    const [d, mo] = rawDate.split('.');
-    const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const dateStr = `${parseInt(d)} ${months[parseInt(mo)]}`;
-    const cleanHome = home.replace(/\s+/g,' ').trim();
-    const cleanAway = away.replace(/St\.George/g,'St George').replace(/\s+/g,' ').trim();
-    if (cleanHome.length > 3 && cleanAway.length > 3) {
-      results.fixtures.push({ date: dateStr, home: cleanHome, away: cleanAway });
-    }
-  }
-
-  // Detect round from context — look for "Round N" or count games
-  const roundMatch = text.match(/[Rr]ound\s+(\d+)/);
-  if (roundMatch) results.currentRound = parseInt(roundMatch[1]);
-
-  return results;
-}
-
-async function fetchRealFixtures() {
-  const url = 'https://www.flashscore.com.au/league/australia/nrl/';
-  const text = await proxyFetch(url);
-  return parseFlashscoreNRL(text);
-}
-
-// ─────────────────────────────────────────────
-//  STEP 2: Claude for predictions + ladder only
-//  (fixtures are fed in from real source above)
-// ─────────────────────────────────────────────
-async function fetchPredictionsAndLadder(realFixtures) {
-  const today = new Date().toLocaleDateString('en-AU', {day:'numeric', month:'long', year:'numeric'});
-
-  // Build fixture list to pass to Claude
-  const fixtureLines = realFixtures.length > 0
-    ? realFixtures.map(f => `${f.date}: ${f.home} vs ${f.away}`).join('\n')
-    : 'No fixtures available - use your best knowledge';
-
-  const prompt = `Today is ${today}. You are an NRL analyst. Here are the CONFIRMED upcoming NRL fixtures:\n${fixtureLines}\n\nRespond with ONLY this JSON (no markdown, no apostrophes, no trailing commas):\n{"currentRound":NUMBER,"season":"2026","updatedDate":"${today}","summaryCards":[{"label":"Current Leaders","value":"SHORT NAME","sub":"RECORD"},{"label":"Best Form","value":"SHORT NAME","sub":"DESCRIPTION"},{"label":"Wooden Spoon","value":"SHORT NAME","sub":"RECORD"},{"label":"Next Round","value":"DATE","sub":"DESCRIPTION"}],"ladder":[{"pos":1,"team":"FULL NAME","p":0,"w":0,"d":0,"l":0,"b":0,"pf":0,"pa":0,"pts":0,"form":["w","l","w","w","l"]}],"nextRound":{"round":NUMBER,"fixtures":[{"date":"D Mon","time":"H:MMpm AEST","home":"FULL NAME","homeRecord":"W-L","homePts":0,"away":"FULL NAME","awayRecord":"W-L","awayPts":0,"venue":"VENUE","prediction":{"winner":"FULL NAME","score":"NN-NN","confidence":55,"notes":"Analysis no apostrophes","keyFactors":["factor1","factor2","factor3"]}}]},"lastRound":{"round":NUMBER,"results":[{"home":"FULL NAME","homeScore":0,"away":"FULL NAME","awayScore":0,"venue":"VENUE Date"}]}}\n\nUse EXACTLY the teams listed in the fixtures above for nextRound. All 17 teams on ladder. No apostrophes anywhere.`;
-
+async function apiCall(messages, useSearch) {
+  const body = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 8000,
+    system: 'You are an NRL data assistant. When asked to search, search thoroughly. When asked for JSON, output ONLY raw JSON with no markdown fences, no apostrophes in strings, straight double quotes, no trailing commas.',
+    messages
+  };
+  if (useSearch) body.tools = [{type: 'web_search_20250305', name: 'web_search'}];
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      system: 'You are an NRL data assistant. Respond with ONLY raw JSON. No markdown. No apostrophes in strings. Straight double quotes only. No trailing commas.',
-      messages: [{role: 'user', content: prompt}]
-    })
+    body: JSON.stringify(body)
   });
-
   if (!res.ok) throw new Error(`API ${res.status}`);
-  const raw = await res.json();
-  const text = (raw.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  return res.json();
+}
 
+function extractContent(raw) {
+  // Returns all content blocks for use as assistant turn
+  return raw.content || [];
+}
+
+function extractText(raw) {
+  return (raw.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+}
+
+function parseJSON(text) {
   const first = text.indexOf('{'), last = text.lastIndexOf('}');
-  if (first === -1) throw new Error(`No JSON: "${text.slice(0,150)}"`);
-  let json = text.slice(first, last + 1)
+  if (first === -1) throw new Error(`No JSON found in: "${text.slice(0,120)}"`);
+  let s = text.slice(first, last + 1)
     .replace(/[\u2018\u2019\u02BC\u2032]/g, '')
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2013\u2014]/g, '-')
     .replace(/,(\s*[}\]])/g, '$1')
     .replace(/\\'/g, '');
-
   try {
-    const parsed = JSON.parse(json);
-
-    // Always override nextRound fixtures with real ones from Flashscore
-    if (realFixtures.length > 0 && parsed.nextRound) {
-      parsed.nextRound.fixtures = parsed.nextRound.fixtures.map((cf, i) => {
-        const rf = realFixtures[i];
-        if (!rf) return cf;
-        // Keep Claude's prediction but use real team names and date
-        return { ...cf, home: rf.home, away: rf.away, date: rf.date };
-      });
-    }
-    return parsed;
+    return JSON.parse(s);
   } catch(e) {
     const pos = parseInt((e.message.match(/position (\d+)/) || [])[1] || 0);
-    console.error('JSON error near:', json.slice(Math.max(0,pos-60), pos+60));
-    throw new Error(`JSON parse: ${e.message}`);
+    console.error('JSON error near:', s.slice(Math.max(0,pos-80), pos+80));
+    throw new Error(`JSON parse failed: ${e.message}`);
   }
 }
 
-// ─────────────────────────────────────────────
-//  MAIN FETCH — tries real fixtures first
-// ─────────────────────────────────────────────
 async function fetchFromClaude() {
-  let realFixtures = [];
-  try {
-    const scraped = await fetchRealFixtures();
-    realFixtures = scraped.fixtures.slice(0, 8); // next round only
-    console.log(`Got ${realFixtures.length} real fixtures from Flashscore`);
-  } catch(e) {
-    console.warn('Flashscore scrape failed:', e.message);
-  }
-  return fetchPredictionsAndLadder(realFixtures);
+  const today = new Date().toLocaleDateString('en-AU', {day:'numeric', month:'long', year:'numeric'});
+
+  // ── Turn 1: search for real fixtures and results ──
+  const searchPrompt = `Search for the current 2026 NRL Telstra Premiership season right now. Find:
+1. The NEXT upcoming round fixtures - exact teams, dates, venues, kick-off times
+2. The LAST completed round results - scores for all games
+3. The current ladder standings - all 17 teams with wins, losses, points
+
+Search specifically for "NRL 2026 round ${today} fixtures" and "NRL ladder 2026" to get accurate current data.`;
+
+  const turn1 = await apiCall([{role:'user', content: searchPrompt}], true);
+  const assistantContent = extractContent(turn1);
+
+  // ── Turn 2: format what was found as clean JSON ──
+  const formatPrompt = `Based on the NRL data you just found, respond with ONLY this JSON structure — no other text:
+
+{"currentRound":NUMBER,"season":"2026","updatedDate":"${today}","summaryCards":[{"label":"Current Leaders","value":"SHORT NAME","sub":"RECORD"},{"label":"Best Form","value":"SHORT NAME","sub":"DESCRIPTION"},{"label":"Wooden Spoon","value":"SHORT NAME","sub":"RECORD"},{"label":"Next Round","value":"DATE","sub":"DESCRIPTION"}],"ladder":[{"pos":1,"team":"FULL TEAM NAME","p":0,"w":0,"d":0,"l":0,"b":0,"pf":0,"pa":0,"pts":0,"form":["w","l","w","w","l"]}],"nextRound":{"round":NUMBER,"fixtures":[{"date":"D Mon","time":"H:MMpm AEST","home":"FULL TEAM NAME","homeRecord":"W-L","homePts":0,"away":"FULL TEAM NAME","awayRecord":"W-L","awayPts":0,"venue":"VENUE","prediction":{"winner":"FULL TEAM NAME","score":"NN-NN","confidence":55,"notes":"Analysis. No apostrophes.","keyFactors":["factor1","factor2","factor3"]}}]},"lastRound":{"round":NUMBER,"results":[{"home":"FULL TEAM NAME","homeScore":0,"away":"FULL TEAM NAME","awayScore":0,"venue":"VENUE Date"}]}}
+
+Rules: all 17 teams on ladder, all fixtures for next round, all results for last completed round, NO apostrophes, NO trailing commas.`;
+
+  const turn2 = await apiCall([
+    {role:'user', content: searchPrompt},
+    {role:'assistant', content: assistantContent},
+    {role:'user', content: formatPrompt}
+  ], false);
+
+  const text = extractText(turn2);
+  return parseJSON(text);
 }
 
 // ─────────────────────────────────────────────
